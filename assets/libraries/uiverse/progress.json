@@ -1,0 +1,38 @@
+{
+  "name": "progress",
+  "version": "1.0",
+  "type": "ui_component",
+  "category": "component",
+  "description": "进度条组件",
+  "properties": {
+    "height": 4,
+    "backgroundColor": "#EEEEEE",
+    "borderRadius": 2
+  },
+  "variants": [
+    {
+      "variant": "linear",
+      "description": "线性进度条",
+      "fillColor": "#007AFF",
+      "showLabel": false
+    },
+    {
+      "variant": "circular",
+      "description": "圆形进度条",
+      "radius": 40,
+      "strokeWidth": 4,
+      "fillColor": "#007AFF",
+      "showPercentage": true
+    }
+  ],
+  "animations": {
+    "indeterminate": {
+      "type": "pulse",
+      "duration": 1500
+    },
+    "determinate": {
+      "type": "linear",
+      "duration": 3000
+    }
+  }
+}

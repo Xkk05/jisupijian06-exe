@@ -1,0 +1,42 @@
+# -*- coding: utf-8 -*-
+# ==================== 极速批剪 - 依赖库列表 ====================
+# UI框架
+PyQt6==6.6.1
+PyQt6-Qt6==6.6.1
+PyQt6-sip==13.6.0
+
+# 视频处理
+opencv-python==4.10.0.84
+ffmpeg-python==0.2.0
+
+# 图像处理
+Pillow==10.4.0
+scikit-image==0.24.0
+imageio==2.36.0
+
+# 数值计算
+numpy==1.26.4
+scipy==1.14.1
+
+# 音频处理
+librosa==0.10.2.post1
+soundfile==0.12.1
+pydub==0.25.1
+
+# 系统工具
+psutil==6.1.0
+pyyaml==6.0.2
+python-dotenv==1.0.1
+send2trash==2.1.0
+
+# 数据处理
+colorama==0.4.6
+tqdm==4.67.0
+rich==13.9.4
+
+# 其他工具
+chardet==5.2.0
+certifi==2024.8.30
+urllib3==2.2.3
+setuptools>=65.5.0
+wheel>=0.44.0

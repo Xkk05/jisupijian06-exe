@@ -1,0 +1,55 @@
+{
+  "name": "button",
+  "version": "1.0",
+  "type": "ui_component",
+  "category": "component",
+  "variations": [
+    {
+      "variant": "primary",
+      "description": "主按钮，用于主要操作",
+      "properties": {
+        "backgroundColor": "#007AFF",
+        "textColor": "#FFFFFF",
+        "borderRadius": 8,
+        "padding": "12px 24px",
+        "fontSize": 16,
+        "fontWeight": "bold"
+      },
+      "states": {
+        "default": {
+          "opacity": 1,
+          "scale": 1
+        },
+        "hover": {
+          "opacity": 0.8,
+          "scale": 1.05
+        },
+        "active": {
+          "opacity": 0.6,
+          "scale": 0.95
+        }
+      }
+    },
+    {
+      "variant": "secondary",
+      "description": "次按钮，用于次要操作",
+      "properties": {
+        "backgroundColor": "#E8E8E8",
+        "textColor": "#333333",
+        "borderRadius": 8,
+        "padding": "12px 24px",
+        "fontSize": 16
+      },
+      "states": {
+        "default": {
+          "opacity": 1,
+          "scale": 1
+        },
+        "hover": {
+          "opacity": 0.9,
+          "scale": 1.02
+        }
+      }
+    }
+  ]
+}

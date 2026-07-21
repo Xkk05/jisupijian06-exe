@@ -1,0 +1,53 @@
+{
+  "library": "apsrk",
+  "title": "APSRK 音效库",
+  "description": "背景音乐、音效、环境音、语音提示等综合音效库",
+  "version": "1.0",
+  "materials": [
+    {
+      "id": "bgm_1",
+      "name": "背景音乐1",
+      "type": "mp3",
+      "duration": 180000,
+      "category": "music",
+      "tags": ["背景", "音乐", "BGM"],
+      "description": "舒缓的背景音乐，适合视频配乐"
+    },
+    {
+      "id": "click",
+      "name": "点击声",
+      "type": "wav",
+      "duration": 500,
+      "category": "effect",
+      "tags": ["点击", "音效", "UI"],
+      "description": "清脆的点击音效"
+    },
+    {
+      "id": "success",
+      "name": "成功提示音",
+      "type": "wav",
+      "duration": 800,
+      "category": "effect",
+      "tags": ["成功", "提示", "音效"],
+      "description": "积极的成功提示音"
+    },
+    {
+      "id": "error",
+      "name": "错误提示音",
+      "type": "wav",
+      "duration": 1000,
+      "category": "effect",
+      "tags": ["错误", "提示", "音效"],
+      "description": "警告的错误提示音"
+    },
+    {
+      "id": "ambient_nature",
+      "name": "环境音",
+      "type": "mp3",
+      "duration": 120000,
+      "category": "ambient",
+      "tags": ["自然", "环境", "背景", "循环"],
+      "description": "自然界的环境音效，可循环使用"
+    }
+  ]
+}

@@ -1,0 +1,88 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Environment and Configs
+.env
+backend/.env
+options.ini
+config/ai_models_config.json
+*.env.*
+!*.env.example
+
+# Project specific
+output/
+temp/
+data/
+*.log
+release/
+
+# Binaries and Executables
+ffmpeg/*
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Media and Large Files
+*.mp4
+*.pdf
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+# Allow images in docs for documentation
+!docs/**/*.png
+!docs/**/*.jpg
+!docs/**/*.jpeg
+!docs/**/*.gif
+# Allow assets
+!assets/**/*
+
+# Backups
+processor_backup/
+ui_backup/
+*backup*/
+*.bak
+*.swp
+docs/image/*
+
+examples/
+docs/shuomingshu/screenshots/*

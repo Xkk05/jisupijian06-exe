@@ -1,0 +1,7 @@
+default_bitrate: auto
+default_format: mp4
+default_quality: high
+enable_breakpoint_resume: true
+max_export_tasks: 2
+parallel_export: true
+quality_assessment: true

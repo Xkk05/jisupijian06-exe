@@ -1,0 +1,53 @@
+{
+  "library": "skyreels",
+  "title": "Skyreels 天空景观库",
+  "description": "包含日出、日落、云动画、彩虹等天空景观素材",
+  "version": "1.0",
+  "materials": [
+    {
+      "id": "sunrise",
+      "name": "日出",
+      "type": "mp4",
+      "duration": 8000,
+      "category": "scene",
+      "tags": ["日出", "天空", "风景", "早晨"],
+      "description": "美丽的日出景观动画，适合视频开场"
+    },
+    {
+      "id": "sunset",
+      "name": "日落",
+      "type": "mp4",
+      "duration": 8000,
+      "category": "scene",
+      "tags": ["日落", "天空", "风景", "傍晚"],
+      "description": "绚丽的日落景观动画，氛围感十足"
+    },
+    {
+      "id": "cloud_animation",
+      "name": "云动画",
+      "type": "mp4",
+      "duration": 6000,
+      "category": "effect",
+      "tags": ["云", "动画", "天空"],
+      "description": "流动的云彩动画特效"
+    },
+    {
+      "id": "rainbow",
+      "name": "彩虹",
+      "type": "mp4",
+      "duration": 5000,
+      "category": "effect",
+      "tags": ["彩虹", "特效", "天空"],
+      "description": "绚丽的彩虹特效"
+    },
+    {
+      "id": "blue_sky",
+      "name": "蓝天",
+      "type": "png",
+      "duration": 0,
+      "category": "background",
+      "tags": ["天空", "背景", "蓝色"],
+      "description": "清爽的蓝天静态背景"
+    }
+  ]
+}

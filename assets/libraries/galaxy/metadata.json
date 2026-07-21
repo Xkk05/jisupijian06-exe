@@ -1,0 +1,53 @@
+{
+  "library": "galaxy",
+  "title": "Galaxy 星空背景库",
+  "description": "高质量星空、银河、流星等天体特效素材库",
+  "version": "1.0",
+  "materials": [
+    {
+      "id": "starfield_1",
+      "name": "星空背景1",
+      "type": "mp4",
+      "duration": 5000,
+      "category": "background",
+      "tags": ["星空", "背景", "宇宙", "夜空"],
+      "description": "深邃的星空背景，适合各类视频开场"
+    },
+    {
+      "id": "milky_way",
+      "name": "银河系",
+      "type": "mp4",
+      "duration": 5000,
+      "category": "background",
+      "tags": ["银河", "星系", "宇宙", "特效"],
+      "description": "绚丽的银河系动画效果"
+    },
+    {
+      "id": "meteor_shower",
+      "name": "流星雨",
+      "type": "mp4",
+      "duration": 3000,
+      "category": "effect",
+      "tags": ["流星", "特效", "动画", "短效果"],
+      "description": "逼真的流星雨特效，带闪光效果"
+    },
+    {
+      "id": "star_particles",
+      "name": "星空粒子",
+      "type": "mp4",
+      "duration": 4000,
+      "category": "effect",
+      "tags": ["粒子", "特效", "动画", "闪光"],
+      "description": "飘动的星空粒子特效"
+    },
+    {
+      "id": "starfield_gradient",
+      "name": "星空渐变",
+      "type": "png",
+      "duration": 0,
+      "category": "background",
+      "tags": ["背景", "渐变", "星空"],
+      "description": "星空渐变静态背景图"
+    }
+  ]
+}

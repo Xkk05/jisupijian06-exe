@@ -1,0 +1,30 @@
+{
+  "name": "play_button",
+  "version": "1.0",
+  "fps": 30,
+  "width": 200,
+  "height": 200,
+  "duration": 30,
+  "frameCount": 1,
+  "type": "lottie",
+  "keyFrames": [
+    {
+      "frame": 0,
+      "properties": {
+        "opacity": 1,
+        "scale": 1,
+        "rotation": 0
+      }
+    }
+  ],
+  "layers": [
+    {
+      "id": "play_triangle",
+      "type": "shape",
+      "shape": "polygon",
+      "points": [50, 30, 170, 100, 50, 170],
+      "fill": "#FF6B6B",
+      "stroke": "none"
+    }
+  ]
+}

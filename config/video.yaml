@@ -1,0 +1,8 @@
+cache_enabled: true
+cache_size_mb: 500
+default_codec: libx264
+default_crf: 23
+default_preset: medium
+gpu_acceleration: false
+max_threads: 4
+temp_dir: ''

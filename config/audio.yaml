@@ -1,0 +1,7 @@
+bit_depth: 16
+channels: 2
+default_mixer_mode: longest
+loudnorm_integrated_loudness: -16.0
+loudnorm_true_peak: -1.5
+normalize_audio: true
+sample_rate: 44100

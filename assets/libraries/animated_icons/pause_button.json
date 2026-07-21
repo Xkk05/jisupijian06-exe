@@ -1,0 +1,39 @@
+{
+  "name": "pause_button",
+  "version": "1.0",
+  "fps": 30,
+  "width": 200,
+  "height": 200,
+  "duration": 30,
+  "frameCount": 1,
+  "type": "lottie",
+  "keyFrames": [
+    {
+      "frame": 0,
+      "properties": {
+        "opacity": 1,
+        "scale": 1
+      }
+    }
+  ],
+  "layers": [
+    {
+      "id": "pause_left",
+      "type": "rect",
+      "x": 50,
+      "y": 30,
+      "width": 30,
+      "height": 140,
+      "fill": "#4ECDC4"
+    },
+    {
+      "id": "pause_right",
+      "type": "rect",
+      "x": 120,
+      "y": 30,
+      "width": 30,
+      "height": 140,
+      "fill": "#4ECDC4"
+    }
+  ]
+}

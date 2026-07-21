@@ -1,0 +1,40 @@
+{
+  "name": "loading",
+  "version": "1.0",
+  "fps": 30,
+  "width": 200,
+  "height": 200,
+  "duration": 120,
+  "frameCount": 120,
+  "type": "lottie",
+  "animation": "spinning",
+  "keyFrames": [
+    {
+      "frame": 0,
+      "properties": {
+        "opacity": 1,
+        "rotation": 0
+      }
+    },
+    {
+      "frame": 120,
+      "properties": {
+        "opacity": 1,
+        "rotation": 360
+      }
+    }
+  ],
+  "layers": [
+    {
+      "id": "loading_circle",
+      "type": "circle",
+      "cx": 100,
+      "cy": 100,
+      "r": 80,
+      "fill": "none",
+      "stroke": "#95E1D3",
+      "strokeWidth": 8,
+      "strokeDasharray": "251.2 753.6"
+    }
+  ]
+}

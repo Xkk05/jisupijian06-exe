@@ -1,0 +1,31 @@
+{
+  "name": "card",
+  "version": "1.0",
+  "type": "ui_component",
+  "category": "component",
+  "description": "卡片容器组件",
+  "properties": {
+    "backgroundColor": "#FFFFFF",
+    "borderRadius": 12,
+    "shadowColor": "#000000",
+    "shadowOpacity": 0.1,
+    "shadowBlur": 8,
+    "shadowOffset": {
+      "x": 0,
+      "y": 2
+    },
+    "padding": "16px"
+  },
+  "layouts": [
+    {
+      "variant": "horizontal",
+      "description": "水平布局卡片",
+      "children": ["image", "content"]
+    },
+    {
+      "variant": "vertical",
+      "description": "竖直布局卡片",
+      "children": ["header", "image", "content", "footer"]
+    }
+  ]
+}

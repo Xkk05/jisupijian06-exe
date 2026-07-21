@@ -1,0 +1,39 @@
+{
+  "name": "checkmark",
+  "version": "1.0",
+  "fps": 30,
+  "width": 200,
+  "height": 200,
+  "duration": 60,
+  "frameCount": 60,
+  "type": "lottie",
+  "animation": "draw",
+  "keyFrames": [
+    {
+      "frame": 0,
+      "properties": {
+        "strokeDashoffset": 100,
+        "opacity": 0
+      }
+    },
+    {
+      "frame": 60,
+      "properties": {
+        "strokeDashoffset": 0,
+        "opacity": 1
+      }
+    }
+  ],
+  "layers": [
+    {
+      "id": "checkmark_path",
+      "type": "path",
+      "d": "M 60,120 L 90,150 L 150,70",
+      "fill": "none",
+      "stroke": "#38B000",
+      "strokeWidth": 12,
+      "strokeLinecap": "round",
+      "strokeLinejoin": "round"
+    }
+  ]
+}

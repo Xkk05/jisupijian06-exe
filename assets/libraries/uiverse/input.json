@@ -1,0 +1,34 @@
+{
+  "name": "input",
+  "version": "1.0",
+  "type": "ui_component",
+  "category": "component",
+  "description": "文本输入框组件",
+  "properties": {
+    "height": 44,
+    "borderRadius": 8,
+    "borderColor": "#CCCCCC",
+    "borderWidth": 1,
+    "padding": "8px 12px",
+    "fontSize": 14,
+    "placeholder": {
+      "color": "#999999",
+      "fontStyle": "italic"
+    }
+  },
+  "states": {
+    "default": {
+      "backgroundColor": "#FFFFFF",
+      "textColor": "#000000"
+    },
+    "focused": {
+      "backgroundColor": "#F5F5F5",
+      "borderColor": "#007AFF",
+      "borderWidth": 2
+    },
+    "disabled": {
+      "backgroundColor": "#F0F0F0",
+      "textColor": "#CCCCCC"
+    }
+  }
+}

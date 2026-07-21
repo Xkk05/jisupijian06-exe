@@ -1,0 +1,7 @@
+auto_update: false
+check_updates: true
+debug_mode: false
+enable_telemetry: false
+log_level: INFO
+memory_limit_mb: 4096
+profile_performance: false

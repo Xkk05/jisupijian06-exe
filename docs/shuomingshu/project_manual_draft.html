@@ -1,0 +1,301 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>极速批剪 软件说明书</title>
+  <style>
+    @page { size: A4 portrait; margin: 0; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; background: #fff; color: #222; font-family: SimSun, "Songti SC", "宋体", serif; }
+    .page { width: 595.3pt; height: 841.9pt; margin: 0 auto; position: relative; page-break-after: always; break-after: page; overflow: hidden; background: #fff; }
+    .page:last-child { page-break-after: auto; }
+    .inner { position: absolute; left: 90pt; right: 90pt; top: 74pt; }
+    .cover-title { position: absolute; left: 0; right: 0; top: 322pt; text-align: center; font-size: 38px; line-height: 1.55; font-weight: 400; }
+    .cover-subtitle { margin-top: 12pt; font-size: 20px; color: #444; }
+    .toc-title { text-align: center; font-size: 30px; line-height: 1.3; margin: 0 0 14pt; font-weight: 400; }
+    .toc-list { margin-top: 8pt; }
+    .toc-item { display: flex; align-items: flex-end; font-size: 24px; line-height: 1.8; margin: 0; }
+    .toc-item.sub { padding-left: 28pt; font-size: 21px; line-height: 1.75; }
+    .toc-item .name { white-space: nowrap; margin-right: 8pt; }
+    .toc-item .leader { flex: 1; border-bottom: 3px dotted #111; margin: 0 8pt 7pt 0; min-width: 20pt; }
+    .toc-item .page-num { width: 18pt; text-align: right; white-space: nowrap; }
+    h2.section-title { margin: 0 0 10pt; font-size: 30px; line-height: 1.35; font-weight: 600; }
+    h3.func-title { margin: 0 0 10pt; font-size: 24px; line-height: 1.35; font-weight: 600; }
+    p.lead { margin: 0 0 10pt; font-size: 18px; line-height: 1.9; }
+    p.desc { margin: 0 0 8pt; font-size: 17px; line-height: 1.72; }
+    ol.steps { margin: 0 0 10pt 22pt; padding: 0; font-size: 16px; line-height: 1.68; }
+    .shot { width: 100%; max-width: 415pt; max-height: 360pt; object-fit: contain; border: none; display: block; margin-top: 8pt; }
+    .shot.dual { max-height: 210pt; }
+    .shot.placeholder {
+      width: 415pt;
+      min-height: 260pt;
+      max-height: 470pt;
+      border: 1px dashed #888;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #555;
+      font-size: 14px;
+      padding: 10pt;
+      text-align: center;
+      box-sizing: border-box;
+      margin-top: 8pt;
+      white-space: pre-line;
+    }
+    .page-no { position: absolute; bottom: 28pt; left: 0; right: 0; text-align: center; font-size: 14px; color: #444; }
+    .split { height: 1px; background: #444; margin: 14pt 0; opacity: 0.35; }
+    @media print {
+      html, body { width: 210mm; height: 297mm; background: #fff !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .page { margin: 0 auto; }
+      .page:last-child { break-after: auto; }
+      h2, h3, p, ol, li { break-inside: avoid; page-break-inside: avoid; }
+      img { page-break-inside: avoid; break-inside: avoid; image-rendering: auto; }
+    }
+  </style>
+</head>
+<body>
+  <section class="page">
+    <div class="cover-title">
+      <div>极速批剪</div>
+      <div>（软件说明书）</div>
+
+    </div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h2 class="toc-title">目录</h2>
+      <div class="toc-list">
+        <p class="toc-item"><span class="name">1. 引言</span><span class="leader"></span><span class="page-num">3</span></p>
+        <p class="toc-item sub"><span class="name">(1) 编写目的</span><span class="leader"></span><span class="page-num">3</span></p>
+        <p class="toc-item sub"><span class="name">(2) 背景</span><span class="leader"></span><span class="page-num">3</span></p>
+        <p class="toc-item"><span class="name">2. 用途</span><span class="leader"></span><span class="page-num">3</span></p>
+        <p class="toc-item sub"><span class="name">(1) 功能</span><span class="leader"></span><span class="page-num">3</span></p>
+        <p class="toc-item sub"><span class="name">(2) 性能</span><span class="leader"></span><span class="page-num">3</span></p>
+        <p class="toc-item"><span class="name">3. 运行环境</span><span class="leader"></span><span class="page-num">3</span></p>
+        <p class="toc-item sub"><span class="name">(1) 硬件设备</span><span class="leader"></span><span class="page-num">3</span></p>
+        <p class="toc-item sub"><span class="name">(2) 支持软件</span><span class="leader"></span><span class="page-num">3</span></p>
+        <p class="toc-item"><span class="name">4. 操作说明</span><span class="leader"></span><span class="page-num">4</span></p>
+        <p class="toc-item sub"><span class="name">(1) 主窗口布局</span><span class="leader"></span><span class="page-num">4</span></p>
+        <p class="toc-item sub"><span class="name">(2) 添加视频与目录导入</span><span class="leader"></span><span class="page-num">5</span></p>
+        <p class="toc-item"><span class="name">5. 核心处理能力</span><span class="leader"></span><span class="page-num">6</span></p>
+        <p class="toc-item sub"><span class="name">(1) 去水印功能</span><span class="leader"></span><span class="page-num">6</span></p>
+        <p class="toc-item sub"><span class="name">(2) 添加水印功能</span><span class="leader"></span><span class="page-num">7</span></p>
+        <p class="toc-item sub"><span class="name">(3) 裁剪功能（区域设置）</span><span class="leader"></span><span class="page-num">8</span></p>
+        <p class="toc-item sub"><span class="name">(4) 变速功能</span><span class="leader"></span><span class="page-num">9</span></p>
+        <p class="toc-item"><span class="name">6. 增强处理能力</span><span class="leader"></span><span class="page-num">10</span></p>
+        <p class="toc-item sub"><span class="name">(1) 文字轨道与字幕来源</span><span class="leader"></span><span class="page-num">10</span></p>
+        <p class="toc-item sub"><span class="name">(2) 音频与画面调整</span><span class="leader"></span><span class="page-num">11</span></p>
+        <p class="toc-item"><span class="name">7. 预览、执行与结果检查</span><span class="leader"></span><span class="page-num">12</span></p>
+        <p class="toc-item sub"><span class="name">(1) 预览效果</span><span class="leader"></span><span class="page-num">12</span></p>
+        <p class="toc-item sub"><span class="name">(2) 批量执行与状态查看</span><span class="leader"></span><span class="page-num">13</span></p>
+        <p class="toc-item sub"><span class="name">(3) 选项与语言设置</span><span class="leader"></span><span class="page-num">14</span></p>
+      </div>
+    </div>
+    <div class="page-no">第 2 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h2 class="section-title">一、引言</h2>
+      <h3 class="func-title" style="font-size:22px;">（一）编写目的</h3>
+      <p class="desc">本说明书用于指导用户使用公司“极速批剪平台”。希望用户在使用系统过程中能够快速上手，起到“无师自通”的作用。本手册重点介绍系统主要功能及对应操作方法。</p>
+      <h3 class="func-title" style="font-size:22px;">（二）背景</h3>
+      <p class="desc">该系统由江西六角星科技有限公司开发，通过自动化和智能化方式提升工作效率并优化用户体验。</p>
+
+      <h2 class="section-title" style="font-size: 26px;">二、用途</h2>
+      <h3 class="func-title" style="font-size:22px;">（一）功能</h3>
+      <p class="desc">极速批剪是一款面向办公、自媒体、短视频创作、素材整理等场景的批量剪辑工具。软件以“批量处理、极速成片、简单易用”为核心，支持批量导入视频与图片素材，一站式完成裁剪、拼接、变速、加水印、加字幕、转格式、压缩、封面提取、片段截取等常用操作。</p>
+      <p class="desc">工具兼容主流音视频与图片格式，处理速度快、资源占用低；所有操作在本地完成，不上传文件、不收集隐私信息，可显著提升内容制作与素材处理效率。</p>
+      <h3 class="func-title" style="font-size:22px;">（二）性能</h3>
+      <p class="desc">系统运行稳定，能够满足日常批量处理业务需求。</p>
+
+      <h2 class="section-title" style="font-size: 26px;">三、运行环境</h2>
+      <p class="desc">（一）硬件设备：CPU i5 四核及以上；内存 8GB 及以上；硬盘可用空间 50GB 及以上。</p>
+      <p class="desc">（二）支持软件：Windows Server 2012、Windows 10；.NET Framework 3.5。</p>
+    </div>
+    <div class="page-no">第 3 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h2 class="section-title">四、操作说明</h2>
+      <h3 class="func-title">（1）【主界面与文件导入】主窗口布局</h3>
+      <p class="desc">截图展示了典型主窗口结构：左侧素材列表，右侧参数功能区（如画面调整/去水印/加水印/裁剪/变速/文本/背景音），底部为输出路径与开始处理区域。</p>
+      <ol class="steps">
+        <li>启动软件后，确认左上角为“导入/移除/清空”素材操作区。</li>
+        <li>在右侧顶部切换功能标签，优先按“画面调整 → 去水印 → 加水印”等顺序配置。</li>
+        <li>在“画面微调（随机微调）”中可看到亮度、对比度、饱和度、锐化、降噪参数。</li>
+        <li>继续按需设置“宫格分屏”“分辨率调整”等功能开关。</li>
+        <li>最后在底部设置输出位置并点击“开始处理”。</li>
+      </ol>
+      <img class="shot" src="./screenshots/主页面总览.png" alt="主窗口布局" />
+    </div>
+    <div class="page-no">第 4 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（2）【主界面与文件导入】添加视频与目录导入</h3>
+      <p class="desc">“导入”按钮支持下拉选择“导入文件”或“导入文件夹”，同时画布区域也提供“导入文件 / 导入文件夹”快捷入口。</p>
+      <ol class="steps">
+        <li>点击左上角“导入”按钮，展开下拉菜单。</li>
+        <li>选择“导入文件”时，可一次选择多个视频文件。</li>
+        <li>选择“导入文件夹”时，适合批量导入同目录素材。</li>
+        <li>导入完成后，左侧列表会显示文件条目与状态。</li>
+        <li>如导入错误，可使用“移除”或“清空”重新整理任务列表。</li>
+      </ol>
+      <img class="shot" src="./screenshots/导入文件页面.png" alt="导入文件与导入文件夹" />
+    </div>
+    <div class="page-no">第 5 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（3）【核心处理能力】去水印功能</h3>
+      <p class="desc">截图展示了去水印区域选择窗口：中间为可拖拽选区，底部有时间轴和“当前选区”坐标信息，适用于定位静态或阶段性水印。</p>
+      <ol class="steps">
+        <li>进入“去水印”标签并启用功能后，点击“选区”。</li>
+        <li>在弹窗中拖动蓝色框体，覆盖目标水印位置。</li>
+        <li>拖动底部时间轴切换到有水印的典型帧进行校准。</li>
+        <li>查看底部“当前选区（原始视频坐标）”参数是否合理。</li>
+        <li>确认后点击“确认”，返回主界面继续处理。</li>
+      </ol>
+      <img class="shot" src="./screenshots/04-去水印参数页.png" alt="去水印参数页" />
+    </div>
+    <div class="page-no">第 6 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（4）【核心处理能力】添加水印功能</h3>
+      <p class="desc">截图为“手动定位水印位置”窗口：左侧视频画布用于拖拽定位，右侧“水印控制”包含快捷定位、文字设置、效果设置等参数。</p>
+      <ol class="steps">
+        <li>进入“加水印”标签并打开手动定位窗口。</li>
+        <li>先在右侧“快捷定位”中选择大致方向，再微调位置。</li>
+        <li>在“文字设置”中填写文本内容，配置字体样式、字体大小、不透明度。</li>
+        <li>在“效果设置”中调整旋转角度等视觉参数。</li>
+        <li>点击“确定”保存位置与样式，返回主界面进行预览。</li>
+      </ol>
+      <img class="shot" src="./screenshots/05-添加水印参数页.png" alt="添加水印参数页" />
+    </div>
+    <div class="page-no">第 7 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（5）【核心处理能力】裁剪功能（区域设置）</h3>
+      <p class="desc">截图为“设置裁切区域”窗口：蓝色框表示保留画面，外围灰暗区域将被裁掉；底部会实时显示“边距”和“裁切后分辨率”。</p>
+      <ol class="steps">
+        <li>进入“裁剪”标签并打开“设置裁切区域”。</li>
+        <li>拖动选区边缘或角点，确定最终保留画面范围。</li>
+        <li>观察网格辅助线，确保主体内容位于安全区域内。</li>
+        <li>查看底部“边距/裁切后分辨率”是否符合目标平台要求。</li>
+        <li>点击“确定”保存裁剪参数。</li>
+      </ol>
+      <img class="shot" src="./screenshots/06-裁剪与画中画.png" alt="裁剪区域设置" />
+    </div>
+    <div class="page-no">第 8 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（6）【核心处理能力】变速功能</h3>
+      <p class="desc">“变速”页支持基础倍速区间、最短时长限制、分段变速和音频变调等参数，可用于批量统一节奏。</p>
+      <ol class="steps">
+        <li>切换到“变速”标签并打开“音视频变速”开关。</li>
+        <li>设置“变速倍数”范围（示例中为 1.00 ~ 1.05）。</li>
+        <li>按需启用“最短时长限制”，避免短视频被过度压缩。</li>
+        <li>按需启用“分段变速”，设置每段时长实现节奏变化。</li>
+        <li>若需修正音色，勾选“音频处理：启用变调”，再点击“预览效果”。</li>
+      </ol>
+      <img class="shot" src="./screenshots/变速页面.png" alt="变速功能页面" />
+    </div>
+    <div class="page-no">第 9 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（7）【增强处理能力】文字轨道与字幕来源</h3>
+      <p class="desc">截图展示“文字设置 - 文本1”弹窗，支持“文件名模式、文件夹模式、文本模式”三种来源，并提供位置与动画参数配置区。</p>
+      <ol class="steps">
+        <li>进入“文本”标签，打开“文字设置 - 文本1”。</li>
+        <li>选择文本来源模式：文件名模式、文件夹模式或文本模式。</li>
+        <li>若使用文件夹模式，点击“浏览”选择文本文件来源目录。</li>
+        <li>若使用文本模式，直接在输入框填写文本内容。</li>
+        <li>完成“位置与边距设置”后，点击“预览效果”并保存。</li>
+      </ol>
+      <img class="shot" src="./screenshots/文本轨道添加页面.png" alt="文本轨道添加页面" />
+    </div>
+    <div class="page-no">第 10 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（8）【增强处理能力】背景音与画面色调调整</h3>
+      <p class="desc">背景音页面支持音频文件导入、音量、淡入淡出、延迟和循环策略；画面调整支持“色调设置”弹窗进行 Gamma、RGB 通道和色温范围调节。</p>
+      <ol class="steps">
+        <li>在“背景音”标签开启背景音开关，点击“导入”选择音频文件。</li>
+        <li>设置“背景音量”，并按需勾选“淡入淡出”“延迟”“循环播放”“随机应用”。</li>
+        <li>在“原音处理”中按需调整原音音量和原音淡入淡出策略。</li>
+        <li>回到“画面调整”点击“色调调节”，打开色调设置窗口。</li>
+        <li>调整 Gamma、R/G/B 和色温范围后点击“预览效果”确认。</li>
+      </ol>
+      <img class="shot dual" src="./screenshots/背景音调整页面.png" alt="背景音调整页面" />
+      <p class="desc" style="margin-top:10pt;">画面色调设置弹窗示例</p>
+      <img class="shot dual" src="./screenshots/画面调整页面.png" alt="画面色调设置弹窗" />
+    </div>
+    <div class="page-no">第 11 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（9）【预览、执行与结果检查】预览效果</h3>
+      <p class="desc">从截图可见，主功能卡片和参数弹窗均提供“预览效果”按钮。建议每次改动关键参数后先预览，确认再批处理。</p>
+      <ol class="steps">
+        <li>在对应功能页点击“预览效果”。</li>
+        <li>优先检查裁剪边界、水印位置、文本可读性和音画同步。</li>
+        <li>如存在偏移或过度处理，回到参数区微调后再次预览。</li>
+        <li>通过预览后，再复制参数到整批视频执行。</li>
+        <li>建议保留一组稳定参数作为模板，下次直接复用。</li>
+      </ol>
+      <img class="shot" src="./screenshots/预览视频效果页面.png" alt="预览视频效果页面" />
+    </div>
+    <div class="page-no">第 12 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（10）【预览、执行与结果检查】批量执行与状态查看</h3>
+      <p class="desc">主界面底部包含输出位置、浏览按钮、进度条和“开始处理”。执行后可结合状态列与处理记录确认任务结果。</p>
+      <ol class="steps">
+        <li>确认输出目录和关键参数后点击“开始处理”。</li>
+        <li>在底部进度条观察处理进度（如“0% - 未开始处理”会实时变化）。</li>
+        <li>在左侧列表查看单条视频“状态”列变化。</li>
+        <li>在“处理记录”中检查关键日志与异常提示。</li>
+        <li>对失败素材修正参数后再次执行该批次。</li>
+        <li>任务结束后点击“浏览”打开输出目录核验文件。</li>
+      </ol>
+      <img class="shot" src="./screenshots/主页面总览.png" alt="批量执行与状态查看" />
+    </div>
+    <div class="page-no">第 13 页</div>
+  </section>
+
+  <section class="page">
+    <div class="inner">
+      <h3 class="func-title">（11）【预览、执行与结果检查】选项与语言设置</h3>
+      <p class="desc">截图中的“选项”窗口当前位于“转换”页，可配置输出格式、同名文件处理策略、文件名去除规则和并行任务数。</p>
+      <ol class="steps">
+        <li>点击底部“选项”按钮，打开配置窗口。</li>
+        <li>在“目标文件格式”中选择 `Mp4` 或“源格式”。</li>
+        <li>在“若目标文件已存在”中选择“重命名”或“覆盖”。</li>
+        <li>按需启用“文件名去除”（支持关键词与正则）。</li>
+        <li>设置“并行任务数”后点击“确定”保存。</li>
+      </ol>
+      <img class="shot" src="./screenshots/设置选项页面.png" alt="选项设置页面" />
+    </div>
+    <div class="page-no">第 14 页</div>
+  </section>
+</body>
+</html>
