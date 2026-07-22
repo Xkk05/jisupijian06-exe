@@ -371,9 +371,9 @@ class BatchParamsProcessor:
             concat_file = tempfile.NamedTemporaryFile(
                 mode="w", suffix=".txt", delete=False, encoding="utf-8"
             )
+            concat_file.write("ffconcat version 1.0\n")
             for segment in segments:
-                escaped_path = segment.replace("\\", "/").replace("'", "'\\''")
-                concat_file.write(f"file '{escaped_path}'\n")
+                concat_file.write(f"file '{self._format_concat_file_path(segment)}'\n")
             concat_file.close()
             self._temp_files.append(concat_file.name)
 
@@ -3288,6 +3288,12 @@ class BatchParamsProcessor:
 
         return None
 
+    def _format_concat_file_path(self, path: str) -> str:
+        """返回 FFmpeg concat demuxer 可稳定读取的绝对 file URI。"""
+        resolved = Path(path).resolve().as_posix()
+        file_uri = f"file:{resolved}"
+        return file_uri.replace("'", "'\\''")
+
     def _build_head_tail_concat_command(
         self, input_file: str, output_file: str, variant: int
     ) -> Optional[List[str]]:
@@ -3347,11 +3353,11 @@ class BatchParamsProcessor:
             mode="w", suffix=".txt", delete=False, encoding="utf-8"
         )
         try:
+            concat_file.write("ffconcat version 1.0\n")
             for segment in segments:
-                # 转义路径中的特殊字符
-                escaped_path = segment.replace("\\", "/").replace("'", "'\\''")
-                concat_file.write(f"file '{escaped_path}'\n")
+                concat_file.write(f"file '{self._format_concat_file_path(segment)}'\n")
             concat_file.close()
+            self._temp_files.append(concat_file.name)
 
             # 构建FFmpeg命令
             cmd = [self.ffmpeg_path, "-y"]

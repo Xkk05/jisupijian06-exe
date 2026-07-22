@@ -45,7 +45,7 @@ class TextConfigDialog(QDialog):
         self.config = initial_config or {}
         self._language_manager = get_language_manager()
         
-        self.setWindowTitle(f_ts("文字设置 - 文本{track_num}"))
+        self.setWindowTitle(_ts(f"文字设置 - 文本{track_num}"))
         self.setModal(True)
         self.setMinimumWidth(800)
         self.setMinimumHeight(650)
@@ -387,6 +387,7 @@ class TextConfigDialog(QDialog):
         card = ModernCard(_ts("位置与边距设置"))
         layout = QHBoxLayout()
         layout.setSpacing(12)
+        lang = self._language_manager.language
         
         self.position = QComboBox()
         for code in (
@@ -557,6 +558,7 @@ class TextConfigDialog(QDialog):
         
         layout = QHBoxLayout()
         layout.setSpacing(12)
+        lang = self._language_manager.language
         
         self.bg_color_btn = QPushButton()
         self.bg_color_btn.setFixedSize(50, 32)
@@ -610,6 +612,7 @@ class TextConfigDialog(QDialog):
         
         layout = QHBoxLayout()
         layout.setSpacing(12)
+        lang = self._language_manager.language
         
         self.scroll_direction = QComboBox()
         for code in ("right", "left", "up", "down", "random"):
