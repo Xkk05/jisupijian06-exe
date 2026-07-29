@@ -82,6 +82,17 @@ class TestGetLutDir:
         
         assert lut_dir.endswith("luts") or "luts" in lut_dir
 
+    def test_prefers_packaged_meipass_resources(self, monkeypatch, tmp_path):
+        """安装包运行时应从 PyInstaller 资源目录解析 LUT。"""
+        import sys
+        from utils.lut_filters import get_lut_dir
+
+        packaged_luts = tmp_path / "assets" / "luts"
+        packaged_luts.mkdir(parents=True)
+        monkeypatch.setattr(sys, "_MEIPASS", str(tmp_path), raising=False)
+
+        assert get_lut_dir() == str(packaged_luts)
+
 
 class TestListFilters:
     """列出滤镜测试"""
@@ -265,6 +276,24 @@ class TestResolveLutPath:
         # 验证路径使用正确的分隔符
         assert ".cube" in path
         assert "bw.cube" in path
+
+    def test_ffmpeg_resolver_uses_compatibility_layer(self, monkeypatch):
+        from utils import lut_filters
+
+        observed = {}
+
+        def fake_materialize(path, namespace):
+            observed["path"] = path
+            observed["namespace"] = namespace
+            return "C:/ascii-cache/vintage.cube"
+
+        monkeypatch.setattr(lut_filters, "materialize_ascii_resource", fake_materialize)
+
+        result = lut_filters.resolve_ffmpeg_lut_path("vintage")
+
+        assert result == "C:/ascii-cache/vintage.cube"
+        assert observed["path"].endswith("vintage.cube")
+        assert observed["namespace"] == "luts"
 
 
 class TestNormalize:

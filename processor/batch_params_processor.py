@@ -63,6 +63,8 @@ class BatchParamsProcessor:
         self._temp_files: List[str] = []
         self._current_input_file: Optional[str] = None  # 当前处理的输入文件
         self._current_video_index: int = 0  # 当前处理的视频索引（用于文件夹顺序选择）
+        self.last_preview_error = ""
+        self.last_process_error = ""
 
     def _find_ffmpeg(self) -> str:
         """查找FFmpeg可执行文件"""
@@ -549,7 +551,7 @@ class BatchParamsProcessor:
             filters.append(more_effects_filter)
 
         # 12. 变速（非分段）
-        speed_filter = self._build_speed_filter(video_info)
+        speed_filter = self._build_speed_filter(video_info, variant)
         if speed_filter:
             filters.append(speed_filter)
 
@@ -1047,14 +1049,18 @@ class BatchParamsProcessor:
     def _build_frame_extract_filter(self) -> str:
         """构建抽帧滤镜"""
         if not self.config.get("frame_extract", {}).get("enabled"):
+            self._current_frame_extract_interval = 1
             return ""
 
         extract = self.config["frame_extract"]
-        frame_min = extract["min"]
-        frame_max = extract["max"]
+        frame_min = max(1, int(extract.get("min", 1)))
+        frame_max = max(1, int(extract.get("max", frame_min)))
+        if frame_min > frame_max:
+            frame_min, frame_max = frame_max, frame_min
 
         # 随机选择抽帧间隔
         interval = random.randint(frame_min, frame_max)
+        self._current_frame_extract_interval = interval
 
         # select滤镜: 每隔N帧选择一帧
         return f"select='not(mod(n,{interval}))',setpts=N/FRAME_RATE/TB"
@@ -1109,7 +1115,11 @@ class BatchParamsProcessor:
 
     def _build_lut_filter(self) -> str:
         """构建LUT滤镜(对话框)"""
-        from utils.lut_filters import display_to_id, resolve_lut_path, id_to_file
+        from utils.lut_filters import (
+            display_to_id,
+            id_to_file,
+            resolve_ffmpeg_lut_path,
+        )
 
         lut_config = self.config.get("lut_filter", {})
         if not lut_config.get("apply"):
@@ -1140,7 +1150,7 @@ class BatchParamsProcessor:
 
         lut_filters = []
         for filter_id in normalized_ids:
-            lut_path = resolve_lut_path(filter_id)
+            lut_path = resolve_ffmpeg_lut_path(filter_id)
             if lut_path and os.path.exists(lut_path):
                 escaped = self._escape_ffmpeg_path(lut_path)
                 lut_filters.append(f"lut3d='{escaped}'")
@@ -1421,6 +1431,43 @@ class BatchParamsProcessor:
         # overlay滤镜需要使用-i多个输入,这里返回空，在build_command中处理
         return ""
 
+    def _get_effective_filter_duration(self, video_info: Dict) -> float:
+        """计算进入更多效果滤镜时的有效时间轴长度。"""
+        duration = max(0.0, float(video_info.get("duration", 0) or 0))
+
+        trim_config = self.config.get("trim", {})
+        if duration > 0 and trim_config.get("enabled"):
+            mode = normalize_trim_mode(trim_config.get("mode", "trim_edges"))
+            if mode == "trim_edges":
+                head = max(0.0, float(trim_config.get("head", 0) or 0))
+                tail = max(0.0, float(trim_config.get("tail", 0) or 0))
+                duration = max(0.0, duration - head - tail)
+            else:
+                start = max(0.0, float(trim_config.get("start", 0) or 0))
+                remaining = max(0.0, duration - start)
+                requested = max(0.0, float(trim_config.get("duration", 0) or 0))
+                duration = min(remaining, requested) if requested > 0 else remaining
+
+        if getattr(self, "preview_mode", False):
+            preview_duration = max(
+                0.0, float(getattr(self, "preview_duration", 10.0) or 0)
+            )
+            if preview_duration > 0:
+                duration = min(duration, preview_duration)
+
+        extract_config = self.config.get("frame_extract", {})
+        if extract_config.get("enabled"):
+            interval = max(
+                1, int(getattr(self, "_current_frame_extract_interval", 1) or 1)
+            )
+            duration /= interval
+
+        effects = self.config.get("more_effects", {})
+        if effects.get("delay_enabled"):
+            duration += max(0.0, float(effects.get("delay_time", 0) or 0))
+
+        return duration
+
     def _build_more_effects_filter(self, video_info: Dict = None) -> str:
         """构庻更多效果滤镜(对话框)"""
         effects = self.config.get("more_effects", {})
@@ -1437,14 +1484,6 @@ class BatchParamsProcessor:
             if len(color_hex) == 6:
                 alpha = max(0.0, min(1.0, float(opacity)))
                 return f"0x{color_hex}@{alpha:.2f}"
-            return color_value
-
-        def _format_color(color_value: str) -> str:
-            if not isinstance(color_value, str) or not color_value:
-                return color_value
-            color_hex = color_value.lstrip("#")
-            if len(color_hex) == 6:
-                return f"0x{color_hex}"
             return color_value
 
         def _build_curtain_filter(
@@ -1467,43 +1506,55 @@ class BatchParamsProcessor:
                     "horizontal_close" if direction_code == "auto_close" else auto_axis
                 )
 
-            color_expr = _format_color(color_value)
             duration_expr = f"{float(duration):.3f}"
 
-            def _open_horizontal(x_expr: str) -> str:
-                w_expr = f"if(lt(t,{duration_expr}),max(1,iw*t/{duration_expr}),iw)"
-                return f"crop=w='{w_expr}':h=ih:x='{x_expr}':y=0,pad=iw:ih:x='{x_expr}':y=0:color={color_expr}"
+            # 旧版 FFmpeg 对动态 crop 的宽高求值不稳定，收幕到最后一帧时
+            # 会出现宽度为 0 的错误。geq 直接按像素生成幕布，避免改变画面尺寸。
+            color_hex = str(color_value or "#000000").lstrip("#")
+            if len(color_hex) >= 6:
+                try:
+                    red, green, blue = (
+                        int(color_hex[0:2], 16),
+                        int(color_hex[2:4], 16),
+                        int(color_hex[4:6], 16),
+                    )
+                except ValueError:
+                    red, green, blue = 0, 0, 0
+            else:
+                red, green, blue = 0, 0, 0
 
-            def _close_horizontal(x_expr: str) -> str:
-                w_expr = f"if(lt(t,{duration_expr}),max(1,iw*(1-t/{duration_expr})),1)"
-                return f"crop=w='{w_expr}':h=ih:x='{x_expr}':y=0,pad=iw:ih:x='{x_expr}':y=0:color={color_expr}"
+            progress = f"min(1,max(0,T/{duration_expr}))"
+            if direction_code in ("horizontal", "horizontal_close"):
+                if direction_code == "horizontal":
+                    visible = f"lte(abs(X-W/2),W/2*{progress})"
+                else:
+                    visible = (
+                        f"lte(abs(X-W/2),W/2*(1-{progress}))"
+                    )
+            elif direction_code in ("vertical", "vertical_close"):
+                if direction_code == "vertical":
+                    visible = f"lte(abs(Y-H/2),H/2*{progress})"
+                else:
+                    visible = f"lte(abs(Y-H/2),H/2*(1-{progress}))"
+            elif direction_code == "left":
+                visible = f"lte(X,W*{progress})"
+            elif direction_code == "right":
+                visible = f"gte(X,W*(1-{progress}))"
+            elif direction_code == "up":
+                visible = f"lte(Y,H*{progress})"
+            elif direction_code == "down":
+                visible = f"gte(Y,H*(1-{progress}))"
+            else:
+                visible = f"lte(abs(X-W/2),W/2*{progress})"
 
-            def _open_vertical(y_expr: str) -> str:
-                h_expr = f"if(lt(t,{duration_expr}),max(1,ih*t/{duration_expr}),ih)"
-                return f"crop=w=iw:h='{h_expr}':x=0:y='{y_expr}',pad=iw:ih:x=0:y='{y_expr}':color={color_expr}"
-
-            def _close_vertical(y_expr: str) -> str:
-                h_expr = f"if(lt(t,{duration_expr}),max(1,ih*(1-t/{duration_expr})),1)"
-                return f"crop=w=iw:h='{h_expr}':x=0:y='{y_expr}',pad=iw:ih:x=0:y='{y_expr}':color={color_expr}"
-
-            if direction_code == "horizontal":
-                return _open_horizontal("(iw-out_w)/2")
-            if direction_code == "vertical":
-                return _open_vertical("(ih-out_h)/2")
-            if direction_code == "left":
-                return _open_horizontal("0")
-            if direction_code == "right":
-                return _open_horizontal("iw-out_w")
-            if direction_code == "up":
-                return _open_vertical("0")
-            if direction_code == "down":
-                return _open_vertical("ih-out_h")
-            if direction_code == "horizontal_close":
-                return _close_horizontal("(iw-out_w)/2")
-            if direction_code == "vertical_close":
-                return _close_vertical("(ih-out_h)/2")
-
-            return _open_horizontal("(iw-out_w)/2")
+            return (
+                "format=rgb24,"
+                "geq="
+                f"r='if({visible},r(X,Y),{red})':"
+                f"g='if({visible},g(X,Y),{green})':"
+                f"b='if({visible},b(X,Y),{blue})',"
+                "format=yuv420p"
+            )
 
         # 延时（整体后移）
         if effects.get("delay_enabled"):
@@ -1517,15 +1568,22 @@ class BatchParamsProcessor:
             filters.append(f"fade=in:0:{int(duration * 25)}")
 
         if effects.get("fade_out_enabled"):
-            duration = effects.get("fade_out_duration", 1.5)
-            # 关键修复：预览模式下使用固定时间，正式处理时使用duration表达式
-            if hasattr(self, "preview_mode") and self.preview_mode:
-                # 预览模式：使用固定的起始时间（10秒 - 渐出时长）
-                start_time = self.preview_duration - duration
-                filters.append(f"fade=out:st={start_time:.1f}:d={duration}")
+            configured_duration = max(
+                0.0, float(effects.get("fade_out_duration", 1.5) or 0)
+            )
+            timeline_duration = self._get_effective_filter_duration(video_info)
+            if configured_duration > 0 and timeline_duration > 0:
+                fade_duration = min(configured_duration, timeline_duration)
+                start_time = max(0.0, timeline_duration - fade_duration)
+                filters.append(
+                    f"fade=out:st={start_time:.3f}:d={fade_duration:.3f}"
+                )
             else:
-                # 正式处理：使用duration表达式
-                filters.append(f"fade=out:st=duration-{duration}:d={duration}")
+                logger.warning(
+                    "跳过渐出：无法确定有效时长或渐出时长无效 duration=%s fade=%s",
+                    timeline_duration,
+                    configured_duration,
+                )
 
         # 边框
         if effects.get("border_enabled"):
@@ -1626,7 +1684,87 @@ class BatchParamsProcessor:
 
         return ",".join(filters) if filters else ""
 
-    def _build_speed_filter(self, video_info: Dict) -> str:
+    def _resolve_speed_value(self, video_info: Dict, variant: int) -> float:
+        """为单个视频解析一次变速倍率，供视频和音频滤镜共用。"""
+        speed_config = self.config.get("speed", {})
+        if not speed_config.get("enabled") or speed_config.get("segment_enabled"):
+            return 1.0
+
+        speed_min = float(speed_config.get("min", 1.0))
+        speed_max = float(speed_config.get("max", 1.0))
+        if speed_min > speed_max:
+            speed_min, speed_max = speed_max, speed_min
+
+        if getattr(self, "preview_mode", False):
+            rng = random.Random(time.time_ns())
+        else:
+            rng = random.Random(variant)
+
+        original_speed = rng.uniform(speed_min, speed_max)
+        speed_value = original_speed
+
+        if speed_config.get("min_duration_enabled"):
+            min_duration = float(speed_config.get("min_duration", 10))
+            video_duration = float(video_info.get("duration", 0) or 0)
+
+            if video_duration > 0 and min_duration > 0:
+                expected_duration = video_duration / speed_value
+                if expected_duration < min_duration:
+                    speed_value = video_duration / min_duration
+                    speed_value = max(0.5, min(4.0, speed_value))
+                    print(
+                        f"变速保护: 调整速度从 {original_speed:.2f} 到 {speed_value:.2f} 以满足最短时长 {min_duration}秒"
+                    )
+
+        return speed_value
+
+    def _build_audio_speed_filters(
+        self, speed_value: float, pitch_enabled: bool
+    ) -> List[str]:
+        """构建与视频共用倍率的音频变速滤镜。"""
+        if abs(speed_value - 1.0) <= 0.001:
+            return []
+
+        if pitch_enabled:
+            return [f"asetrate=44100*{speed_value:.4f}", "aresample=44100"]
+
+        filters = []
+        current_speed = speed_value
+        while current_speed > 2.0:
+            filters.append("atempo=2.0")
+            current_speed /= 2.0
+        while current_speed < 0.5:
+            filters.append("atempo=0.5")
+            current_speed /= 0.5
+        if abs(current_speed - 1.0) > 0.001:
+            filters.append(f"atempo={current_speed:.4f}")
+        return filters
+
+    def _build_frame_extract_audio_filters(self, video_info: Dict) -> List[str]:
+        """按本次抽帧间隔同步压缩音频时间轴。"""
+        extract_config = self.config.get("frame_extract", {})
+        if (
+            not extract_config.get("enabled")
+            or not extract_config.get("audio_speed")
+            or not video_info.get("has_audio", True)
+        ):
+            return []
+
+        interval = max(
+            1, int(getattr(self, "_current_frame_extract_interval", 1) or 1)
+        )
+        if interval == 1:
+            return []
+
+        # 内置旧版 FFmpeg 在 filter_complex 中串联多级 atempo 会丢尾帧。
+        # 先统一输入采样率，再通过 asetrate 可靠压缩时间轴。
+        return [
+            "aresample=44100",
+            f"asetrate=44100*{float(interval):.4f}",
+            "aresample=44100",
+        ]
+
+    def _build_speed_filter(self, video_info: Dict, variant: int = 0) -> str:
         """构建变速滤镜（仅处理非分段变速）"""
         speed_config = self.config.get("speed", {})
 
@@ -1634,28 +1772,12 @@ class BatchParamsProcessor:
         if not speed_config.get("enabled") or speed_config.get("segment_enabled"):
             return ""
 
-        # 从 min~max 范围随机取速度
-        speed_min = speed_config.get("min", 1.0)
-        speed_max = speed_config.get("max", 1.0)
-        speed_value = random.uniform(speed_min, speed_max)
-
-        # 最短时长保护
-        if speed_config.get("min_duration_enabled"):
-            min_duration = speed_config.get("min_duration", 10)
-            video_duration = video_info.get("duration", 0)
-
-            if video_duration > 0:
-                expected_duration = video_duration / speed_value
-                if expected_duration < min_duration:
-                    # 调整速度以满足最短时长要求
-                    speed_value = video_duration / min_duration
-                    speed_value = max(0.5, min(4.0, speed_value))  # 限制在 0.5-4.0 范围
-                    print(
-                        f"变速保护: 调整速度从 {random.uniform(speed_min, speed_max):.2f} 到 {speed_value:.2f} 以满足最短时长 {min_duration}秒"
-                    )
+        speed_value = getattr(self, "_current_speed_value", None)
+        if speed_value is None:
+            speed_value = self._resolve_speed_value(video_info, variant)
 
         # 视频变速使用 setpts
-        if abs(speed_value - 1.0) > 0.01:
+        if abs(speed_value - 1.0) > 0.001:
             return f"setpts={1.0 / speed_value:.4f}*PTS"
 
         return ""
@@ -1791,40 +1913,24 @@ class BatchParamsProcessor:
 
         # 5. 滚动效果
         if config.get("scroll_enabled"):
-            direction = normalize_scroll_direction(config.get("scroll_direction", "right"))
-            if direction == "random":
-                direction = random.choice(["right", "left", "up", "down"])
-
-            speed = config.get("scroll_speed", 1.0)
-            # 随机速度：在 [0, scroll_speed] 区间随机生成
-            if config.get("random_speed", False):
-                speed = random.uniform(0, speed)
-
-            px_per_sec = 40.0 * speed
-
-            # 对角移动：同时对 X 和 Y 应用滚动（位置为"中间"/"随机"时不生效）
-            diagonal = config.get("diagonal", False)
-            is_center_or_random = position_name in ["center", "random"]
-
-            if diagonal and not is_center_or_random:
-                # 对角移动：同时滚动 X 和 Y
-                if direction in ["right", "left"]:
-                    # 主方向为水平，Y 也滚动
-                    if direction == "right":
-                        x_expr = f"(mod((t*{px_per_sec})+{x_expr},w+text_w)-text_w)"
-                    else:  # 向左
-                        x_expr = f"(w-mod((t*{px_per_sec}),w+text_w))"
-                    # Y 方向也滚动（向下）
-                    y_expr = f"(mod((t*{px_per_sec})+{y_expr},h+text_h)-text_h)"
-                else:  # 向上或向下
-                    # 主方向为垂直，X 也滚动
-                    if direction == "up":
-                        y_expr = f"(h-mod((t*{px_per_sec}),h+text_h))"
-                    else:  # 向下
-                        y_expr = f"(mod((t*{px_per_sec})+{y_expr},h+text_h)-text_h)"
-                    # X 方向也滚动（向右）
-                    x_expr = f"(mod((t*{px_per_sec})+{x_expr},w+text_w)-text_w)"
+            diagonal = bool(config.get("diagonal", False))
+            if diagonal:
+                # 对角模式使用独立的固定运动参数，不再读取普通方向和速度。
+                px_per_sec = 40.0
+                x_expr = f"(mod((t*{px_per_sec})+{x_expr},w+text_w)-text_w)"
+                y_expr = f"(mod((t*{px_per_sec})+{y_expr},h+text_h)-text_h)"
             else:
+                direction = normalize_scroll_direction(
+                    config.get("scroll_direction", "right")
+                )
+                if direction == "random":
+                    direction = random.choice(["right", "left", "up", "down"])
+
+                speed = config.get("scroll_speed", 1.0)
+                if config.get("random_speed", False):
+                    speed = random.uniform(0, speed)
+                px_per_sec = 40.0 * speed
+
                 # 常规单向滚动
                 if direction == "right":
                     x_expr = f"(mod((t*{px_per_sec})+{x_expr},w+text_w)-text_w)"
@@ -2813,6 +2919,7 @@ class BatchParamsProcessor:
             return self._build_segment_speed_command(
                 input_file, output_file, video_info, variant
             )
+        self._current_speed_value = self._resolve_speed_value(video_info, variant)
 
         codec, hwaccel, quality_param = self._get_video_codec_settings()
 
@@ -2967,6 +3074,20 @@ class BatchParamsProcessor:
                 delay_applied_in_filter_complex = True
                 audio_processed = True
 
+            frame_extract_audio_filters = self._build_frame_extract_audio_filters(
+                video_info
+            )
+            if frame_extract_audio_filters and bgm_input_index is None:
+                audio_source = (
+                    audio_map_label if audio_map_label != "0:a?" else "[0:a]"
+                )
+                filter_graph += (
+                    f";{audio_source}{','.join(frame_extract_audio_filters)}"
+                    "[aextract]"
+                )
+                audio_map_label = "[aextract]"
+                audio_processed = True
+
             cmd.extend(["-filter_complex", filter_graph])
             final_video_label = current_label
             cmd.extend(["-map", final_video_label])
@@ -3007,42 +3128,17 @@ class BatchParamsProcessor:
             delay_ms = int(delay_time * 1000)
             audio_filters.append(f"adelay={delay_ms}|{delay_ms}")
 
+        if not audio_processed:
+            audio_filters.extend(self._build_frame_extract_audio_filters(video_info))
+
         speed_config = self.config.get("speed", {})
         if speed_config.get("enabled") and not speed_config.get("segment_enabled"):
-            # 从 min~max 范围随机取速度（与视频变速保持一致）
-            speed_min = speed_config.get("min", 1.0)
-            speed_max = speed_config.get("max", 1.0)
-            speed_value = random.uniform(speed_min, speed_max)
-
-            # 应用最短时长保护后的速度值
-            if speed_config.get("min_duration_enabled"):
-                min_duration = speed_config.get("min_duration", 10)
-                video_duration = video_info.get("duration", 0)
-
-                if video_duration > 0:
-                    expected_duration = video_duration / speed_value
-                    if expected_duration < min_duration:
-                        speed_value = video_duration / min_duration
-                        speed_value = max(0.5, min(4.0, speed_value))
-
-            if abs(speed_value - 1.0) > 0.01:
-                if speed_config.get("pitch_enabled"):
-                    # 变调：使用 asetrate + aresample
-                    audio_filters.append(
-                        f"asetrate=44100*{speed_value:.4f},aresample=44100"
-                    )
-                else:
-                    # 不变调：使用 atempo
-                    # atempo 范围 0.5-2.0，需要多次级联
-                    current_speed = speed_value
-                    while current_speed > 2.0:
-                        audio_filters.append("atempo=2.0")
-                        current_speed /= 2.0
-                    while current_speed < 0.5:
-                        audio_filters.append("atempo=0.5")
-                        current_speed /= 0.5
-                    if abs(current_speed - 1.0) > 0.01:
-                        audio_filters.append(f"atempo={current_speed:.4f}")
+            speed_value = getattr(self, "_current_speed_value", 1.0)
+            audio_filters.extend(
+                self._build_audio_speed_filters(
+                    speed_value, bool(speed_config.get("pitch_enabled"))
+                )
+            )
 
         if audio_filters:
             cmd.extend(["-af", ",".join(audio_filters)])
@@ -3520,6 +3616,7 @@ class BatchParamsProcessor:
             是否成功
         """
         try:
+            self.last_process_error = ""
             # 检查去水印配置
             watermark_config = self.config.get("remove_watermark", {})
             temp_file = None  # 初始化临时文件变量
@@ -3672,6 +3769,7 @@ class BatchParamsProcessor:
             if stop_requested:
                 if progress_callback:
                     progress_callback(0, "已停止")
+                self.last_process_error = "用户停止处理"
                 return False
 
             if returncode == 0:
@@ -3690,12 +3788,17 @@ class BatchParamsProcessor:
                 error_output = "".join(stderr_lines).strip()
                 if error_output:
                     print(f"FFmpeg错误: {error_output}")
+                    self.last_process_error = (
+                        f"FFmpeg处理失败，返回码 {returncode}\n\n{error_output[-4000:]}"
+                    )
                 else:
                     print(f"FFmpeg错误: 返回码 {returncode}，无stderr输出")
+                    self.last_process_error = f"FFmpeg处理失败，返回码 {returncode}，无stderr输出"
                 return False
 
         except Exception as e:
             print(f"处理视频失败: {e}")
+            self.last_process_error = str(e)
             return False
 
     def _process_watermark_removal(
@@ -3877,10 +3980,9 @@ class BatchParamsProcessor:
                 delay_ms = int(delay * 1000)
                 bgm_filters.append(f"adelay={delay_ms}|{delay_ms}")
 
-        bgm_chain = ",".join(bgm_filters) if bgm_filters else "anull"
-
         # 如果原视频没有音轨，只使用背景音乐
         if not has_original_audio:
+            bgm_chain = ",".join(bgm_filters) if bgm_filters else "anull"
             return f"[{bgm_input_index}:a]{bgm_chain}[aout]"
 
         # 构建原音处理链
@@ -3899,9 +4001,16 @@ class BatchParamsProcessor:
                     original_filters.append(f"afade=t=in:d={fade_dur}")
                     original_filters.append(f"afade=t=out:d={fade_dur}")
 
+        # 旧版 FFmpeg 在 amix 后串联多级 atempo 时可能丢失尾部音频。
+        # 先将两路音频压缩到相同时间轴，再执行混音。
+        frame_extract_filters = self._build_frame_extract_audio_filters(video_info)
+        if frame_extract_filters:
+            original_filters.extend(frame_extract_filters)
+            bgm_filters.extend(frame_extract_filters)
+
+        bgm_chain = ",".join(bgm_filters) if bgm_filters else "anull"
         original_chain = ",".join(original_filters) if original_filters else "anull"
 
-        # 构建混音滤镜
         return (
             f"[0:a]{original_chain}[a0];"
             f"[{bgm_input_index}:a]{bgm_chain}[a1];"
@@ -3922,16 +4031,18 @@ class BatchParamsProcessor:
         Returns:
             是否成功
         """
+        self.last_preview_error = ""
         try:
             # 设置预览模式标志（影响渐出时间计算）
             self.preview_mode = True
             self.preview_duration = 10.0
 
             # 复用build_command构建完整命令（包含水印）
-            cmd = self.build_command(input_file, output_file, variant, preview=False)
-
-            # 清除预览模式标志
-            self.preview_mode = False
+            try:
+                cmd = self.build_command(input_file, output_file, variant, preview=False)
+            finally:
+                # 预览标志只影响命令构建，不能泄漏到后续正式处理。
+                self.preview_mode = False
 
             # 在命令中插入时长限制与快速编码参数
             # 找到-i参数后的输入文件位置
@@ -3951,7 +4062,7 @@ class BatchParamsProcessor:
                 elif arg == "-crf" and i + 1 < len(cmd):
                     cmd[i + 1] = "28"
 
-            print(f"预览命令: {' '.join(cmd)}")
+            logger.info("预览命令: %s", " ".join(cmd))
 
             # 执行命令
             result = subprocess.run(
@@ -3959,25 +4070,53 @@ class BatchParamsProcessor:
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
+                errors="replace",
                 timeout=120,
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
             )
 
             if result.returncode != 0:
-                print(f"FFmpeg错误: {result.stderr}")
+                stderr = (result.stderr or "").strip()
+                self.last_preview_error = "FFmpeg处理失败"
+                logger.error(
+                    "预览失败 input=%s output=%s returncode=%s stderr=%s",
+                    input_file,
+                    output_file,
+                    result.returncode,
+                    stderr[-4000:],
+                )
+                return False
+
+            if not os.path.exists(output_file) or os.path.getsize(output_file) <= 0:
+                self.last_preview_error = "FFmpeg未生成有效预览文件"
+                logger.error(
+                    "预览失败：输出文件为空 input=%s output=%s",
+                    input_file,
+                    output_file,
+                )
                 return False
 
             return True
 
         except Exception as e:
-            print(f"生成预览失败: {e}")
-            import traceback
-
-            traceback.print_exc()
+            self.last_preview_error = str(e)
+            logger.error(
+                "生成预览失败 input=%s output=%s",
+                input_file,
+                output_file,
+                exc_info=True,
+            )
             return False
         finally:
             # 清理concat临时文件
             for temp_path in list(self._temp_files):
                 if temp_path and os.path.exists(temp_path):
-                    os.remove(temp_path)
+                    try:
+                        os.remove(temp_path)
+                    except OSError as cleanup_error:
+                        logger.warning(
+                            "预览临时文件清理失败 file=%s error=%s",
+                            temp_path,
+                            cleanup_error,
+                        )
             self._temp_files = []

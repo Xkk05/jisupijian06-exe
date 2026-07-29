@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import re
+import sys
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Dict, List, Optional, Pattern, Tuple
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -24,7 +26,20 @@ LANGUAGE_ALIASES: Dict[str, str] = {
     "english_us": "en",
 }
 
-_LOCALES_DIR = Path(__file__).resolve().parent / "locales"
+def _resolve_locales_dir() -> Path:
+    candidates = []
+    bundle_root = getattr(sys, "_MEIPASS", None)
+    if bundle_root:
+        candidates.append(Path(bundle_root) / "ui" / "i18n" / "locales")
+    candidates.append(Path(__file__).resolve().parent / "locales")
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate
+    return candidates[-1]
+
+
+_LOCALES_DIR = _resolve_locales_dir()
 
 
 def _discover_supported_languages() -> Tuple[str, ...]:
@@ -113,6 +128,7 @@ class LanguageManager(QObject):
         self._default_strings: Dict[str, str] = {}
         self._source_map: Dict[str, str] = {}
         self._source_text_to_key: Dict[str, str] = self._build_source_text_index()
+        self._source_templates = self._build_source_text_templates()
         self._load_default_strings()
         self._load_locale(DEFAULT_LANGUAGE)
 
@@ -150,6 +166,43 @@ class LanguageManager(QObject):
                     continue
                 index[text_s] = str(key)
         return index
+
+    def _build_source_text_templates(
+        self,
+    ) -> List[Tuple[Pattern[str], str, Tuple[str, ...]]]:
+        templates: List[Tuple[Pattern[str], str, Tuple[str, ...]]] = []
+        placeholder_re = re.compile(r"\{([a-zA-Z_][a-zA-Z0-9_]*)\}")
+        for lang in SUPPORTED_LANGUAGES:
+            locale_file = _LOCALES_DIR / f"{lang}.json"
+            if not locale_file.exists():
+                continue
+            try:
+                data = json.loads(locale_file.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            strings = data.get("strings", {})
+            if not isinstance(strings, dict):
+                continue
+            for key, text in strings.items():
+                text_s = str(text)
+                matches = list(placeholder_re.finditer(text_s))
+                if not matches:
+                    continue
+
+                parts: list[str] = []
+                names: list[str] = []
+                cursor = 0
+                for match in matches:
+                    parts.append(re.escape(text_s[cursor:match.start()]))
+                    parts.append("(.+?)")
+                    names.append(match.group(1))
+                    cursor = match.end()
+                parts.append(re.escape(text_s[cursor:]))
+                try:
+                    templates.append((re.compile("^" + "".join(parts) + "$"), str(key), tuple(names)))
+                except re.error:
+                    continue
+        return templates
 
     @property
     def language(self) -> str:
@@ -216,6 +269,24 @@ class LanguageManager(QObject):
         key = self._source_text_to_key.get(text)
         if key:
             return self.t(key, default=text)
+        for pattern, template_key, names in self._source_templates:
+            match = pattern.match(text)
+            if not match:
+                continue
+            values = match.groups()
+            if len(values) != len(names):
+                continue
+            return self.t(
+                template_key,
+                default=text,
+                **{name: value for name, value in zip(names, values)},
+            )
+        for suffix in (":", "："):
+            if text.endswith(suffix) and len(text) > len(suffix):
+                prefix = text[: -len(suffix)]
+                translated_prefix = self.translate_source_text(prefix)
+                if translated_prefix != prefix:
+                    return f"{translated_prefix}:"
         return text
 
 
@@ -252,6 +323,9 @@ def _translate_widget_texts(widget: QWidget) -> None:
         widget.setWindowTitle(manager.translate_source_text(widget.windowTitle()))
 
     for obj in widget.findChildren(QWidget):
+        if hasattr(obj, "retranslate_ui") and callable(getattr(obj, "retranslate_ui")):
+            obj.retranslate_ui()
+
         if isinstance(obj, (QLabel, QPushButton, QCheckBox, QRadioButton, QGroupBox)):
             text = obj.text()
             if text:
@@ -287,4 +361,3 @@ def apply_language_to_widget(widget: QWidget) -> None:
     if hasattr(widget, "retranslate_ui") and callable(getattr(widget, "retranslate_ui")):
         widget.retranslate_ui()
     _translate_widget_texts(widget)
-

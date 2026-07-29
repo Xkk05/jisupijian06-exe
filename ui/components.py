@@ -355,6 +355,9 @@ class SegmentedControl(QWidget):
     def __init__(self, items, parent=None):
         super().__init__(parent)
         self.items = items
+        self._control_height = 38
+        self.setFixedHeight(self._control_height)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         
         # 容器样式
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
@@ -372,6 +375,8 @@ class SegmentedControl(QWidget):
         self.layout.setSpacing(0)
 
         self.scroll_area = QScrollArea(self)
+        self.scroll_area.setFixedHeight(self._control_height)
+        self.scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
         self.scroll_area.setWidgetResizable(False)
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
@@ -385,6 +390,7 @@ class SegmentedControl(QWidget):
         self.layout.addWidget(self.scroll_area)
 
         self.track = QWidget()
+        self.track.setFixedHeight(self._control_height)
         self.track.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self.scroll_area.setWidget(self.track)
 
@@ -471,6 +477,20 @@ class SegmentedControl(QWidget):
             is_selected = (i == self._current_index)
             if btn.isChecked() != is_selected:
                 btn.setChecked(is_selected)
+
+    def retranslate_ui(self):
+        manager = get_language_manager()
+        for index, btn in enumerate(self.buttons):
+            translated = manager.translate_source_text(btn.text())
+            btn.setText(translated)
+            if index < len(self.items):
+                self.items[index] = translated
+            font = btn.font()
+            font.setBold(True)
+            fm = QFontMetrics(font)
+            btn.setMinimumWidth(fm.horizontalAdvance(translated) + 20)
+        self.track.adjustSize()
+        QTimer.singleShot(0, self.animate_indicator)
     
     def animate_indicator(self):
         if not self.buttons:

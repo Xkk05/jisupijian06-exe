@@ -7,11 +7,14 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 
+from utils.pe_signing import clear_stale_authenticode_directory
+
 
 APP_INFO = Path("config/app_info.py")
 ICON = Path("assets/icon.ico")
 ENTRY = Path("launch_application.py")
 UPDATER_EXE = Path("kq-updates-module/universal-updater/dist/updater.exe")
+I18N_LOCALES = Path("ui/i18n/locales")
 
 
 def read_app_info():
@@ -32,7 +35,8 @@ def run(cmd):
 
 
 def build_portable(app_version: str, icon_abs: Path, assets_abs: Path, config_abs: Path,
-                   ffmpeg_abs: Optional[Path], updater_abs: Optional[Path], portable_dir: Path, spec_dir: Path):
+                   locales_abs: Optional[Path], ffmpeg_abs: Optional[Path],
+                   updater_abs: Optional[Path], portable_dir: Path, spec_dir: Path):
     print("[INFO] Building portable (onefile)...")
     portable_name = f"极速批剪-portable-{app_version}"
     portable_cmd = [
@@ -47,15 +51,21 @@ def build_portable(app_version: str, icon_abs: Path, assets_abs: Path, config_ab
         "--specpath", str(spec_dir),
         str(ENTRY),
     ]
+    if locales_abs:
+        portable_cmd.extend(["--add-data", f"{locales_abs}{os.pathsep}ui/i18n/locales"])
     if ffmpeg_abs:
         portable_cmd.extend(["--add-data", f"{ffmpeg_abs}{os.pathsep}ffmpeg"])
     if updater_abs:
         portable_cmd.extend(["--add-data", f"{updater_abs}{os.pathsep}."])
     run(portable_cmd)
+    portable_exe = portable_dir / f"{portable_name}.exe"
+    if clear_stale_authenticode_directory(portable_exe):
+        print(f"[INFO] Cleared inherited Authenticode directory: {portable_exe}")
 
 
 def build_installer_stage(app_name: str, icon_abs: Path, assets_abs: Path, config_abs: Path,
-                          ffmpeg_abs: Optional[Path], updater_abs: Optional[Path], stage_dir: Path, spec_dir: Path):
+                          locales_abs: Optional[Path], ffmpeg_abs: Optional[Path],
+                          updater_abs: Optional[Path], stage_dir: Path, spec_dir: Path):
     print("[INFO] Building installer stage (onedir)...")
     installer_cmd = [
         os.sys.executable, "-m", "PyInstaller",
@@ -69,11 +79,16 @@ def build_installer_stage(app_name: str, icon_abs: Path, assets_abs: Path, confi
         "--specpath", str(spec_dir),
         str(ENTRY),
     ]
+    if locales_abs:
+        installer_cmd.extend(["--add-data", f"{locales_abs}{os.pathsep}ui/i18n/locales"])
     if ffmpeg_abs:
         installer_cmd.extend(["--add-data", f"{ffmpeg_abs}{os.pathsep}ffmpeg"])
     if updater_abs:
         installer_cmd.extend(["--add-data", f"{updater_abs}{os.pathsep}."])
     run(installer_cmd)
+    stage_exe = stage_dir / app_name / f"{app_name}.exe"
+    if clear_stale_authenticode_directory(stage_exe):
+        print(f"[INFO] Cleared inherited Authenticode directory: {stage_exe}")
 
 
 def build_installer(app_name: str, app_version: str, icon_abs: Path, stage_dir: Path, installer_dir: Path):
@@ -191,12 +206,15 @@ def main():
     icon_abs = ICON.resolve()
     assets_abs = Path("assets").resolve()
     config_abs = Path("config").resolve()
+    locales_abs = I18N_LOCALES.resolve() if I18N_LOCALES.exists() else None
     ffmpeg_dir = Path("ffmpeg")
     ffmpeg_abs = ffmpeg_dir.resolve() if ffmpeg_dir.exists() else None
     updater_abs = UPDATER_EXE.resolve() if UPDATER_EXE.exists() else None
 
     if not updater_abs:
         print("[WARN] updater.exe not found, update functionality will not be available in build")
+    if not locales_abs:
+        print(f"[WARN] i18n locales not found: {I18N_LOCALES}")
 
     phase = args.phase
     if args.build_update:
@@ -213,6 +231,7 @@ def main():
             icon_abs=icon_abs,
             assets_abs=assets_abs,
             config_abs=config_abs,
+            locales_abs=locales_abs,
             ffmpeg_abs=ffmpeg_abs,
             updater_abs=updater_abs,
             portable_dir=portable_dir,
@@ -225,6 +244,7 @@ def main():
             icon_abs=icon_abs,
             assets_abs=assets_abs,
             config_abs=config_abs,
+            locales_abs=locales_abs,
             ffmpeg_abs=ffmpeg_abs,
             updater_abs=updater_abs,
             stage_dir=stage_dir,

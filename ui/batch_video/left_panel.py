@@ -262,6 +262,8 @@ def create_left_panel(self) -> QWidget:
     self.header_view.setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
     self.header_view.setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
     self.header_view.setSectionResizeMode(4, QHeaderView.ResizeMode.Fixed)
+    self.video_table.setColumnWidth(0, 34)
+    self.video_table.setColumnWidth(1, 46)
     self.video_table.setColumnWidth(4, 100)  # 状态列需要放置圆点+文字
     
     # 设置复选框回调

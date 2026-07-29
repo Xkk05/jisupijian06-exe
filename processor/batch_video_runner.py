@@ -69,6 +69,7 @@ def process_batch(
 
         video_path = video_info["path"]
         row_index = video_info.get("row_index", idx)
+        video_info.pop("process_error", None)
         status_callback(row_index, "processing")
         emit_progress(
             int((idx / total) * 100),
@@ -101,7 +102,8 @@ def process_batch(
             output_parent_dir = os.path.dirname(output_path)
             if not output_parent_dir:
                 error_message = "输出目录无效"
-                status_callback(idx, f"error:{error_message}")
+                video_info["process_error"] = error_message
+                status_callback(row_index, f"error:{error_message}")
                 logger.error(f"[Batch] failed idx={idx + 1}/{total} error={error_message}")
                 break
             os.makedirs(output_parent_dir, exist_ok=True)
@@ -124,13 +126,24 @@ def process_batch(
                 break
 
             if success:
+                video_info.pop("process_error", None)
                 status_callback(row_index, "done")
                 logger.info(f"[Batch] success idx={idx + 1}/{total} output={output_path}")
             else:
+                video_info["process_error"] = (
+                    getattr(processor, "last_process_error", "") or "处理失败，未返回详细错误"
+                )
                 status_callback(row_index, "failed")
-                logger.error(f"[Batch] failed idx={idx + 1}/{total} output={output_path}")
+                logger.error(
+                    "[Batch] failed idx=%s/%s output=%s error=%s",
+                    idx + 1,
+                    total,
+                    output_path,
+                    video_info["process_error"][-1000:],
+                )
 
         except Exception as e:
+            video_info["process_error"] = str(e)
             logger.error(f"[Batch] exception idx={idx + 1}/{total} error={e}")
             status_callback(row_index, f"error:{str(e)}")
 

@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (
     QStackedLayout,
     QComboBox,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, QSize, pyqtSignal
 from PyQt6.QtGui import QIcon, QPixmap
 from ui.components import (
     ModernButton,
@@ -41,6 +41,7 @@ from ui.components import (
     create_modern_scroll_area,
     create_param_row,
     SegmentedControl,
+    load_svg_icon,
 )
 from ui.theme import Theme
 from ui.i18n import (
@@ -100,6 +101,11 @@ class OptionsDialog(QDialog):
         self._refresh_language_combo_labels()
         apply_language_to_widget(self)
 
+    def retranslate_ui(self):
+        if hasattr(self, "tab_control"):
+            self.tab_control.retranslate_ui()
+            self._fit_tab_control_to_buttons()
+
     def _refresh_language_combo_labels(self):
         if not hasattr(self, "language_combo"):
             return
@@ -115,6 +121,17 @@ class OptionsDialog(QDialog):
         elif self.language_combo.count() > 0:
             self.language_combo.setCurrentIndex(0)
         self.language_combo.blockSignals(False)
+
+    def _on_language_combo_changed(self):
+        if not hasattr(self, "language_combo"):
+            return
+        lang_code = self.language_combo.currentData()
+        if not lang_code:
+            return
+        self.config["ui_language"] = lang_code
+        if lang_code != self._language_manager.language:
+            self._language_manager.set_language(lang_code)
+            self.language_changed.emit(lang_code)
 
     def init_ui(self):
         """初始化UI"""
@@ -137,11 +154,9 @@ class OptionsDialog(QDialog):
         self.tab_control = SegmentedControl(
             [t("options.tab.convert", "转换"), t("options.tab.settings", "设置")]
         )
-        self.tab_control.setFixedWidth(440)
         self.tab_control.valueChanged.connect(self._switch_tab)
-        # 设置每个按钮的宽度
-        for btn in self.tab_control.buttons:
-            btn.setMinimumWidth(190)
+        self._setup_tab_visuals()
+        self._fit_tab_control_to_buttons()
         layout.addWidget(self.tab_control, alignment=Qt.AlignmentFlag.AlignCenter)
 
         # 标签内容容器
@@ -182,6 +197,78 @@ class OptionsDialog(QDialog):
         """切换分段控制器标签页"""
         if 0 <= index < self._tabs_layout.count():
             self._tabs_layout.setCurrentIndex(index)
+            self._update_tab_icons(index)
+
+    def _setup_tab_visuals(self):
+        """为选项页签增加仅作用于当前对话框的视觉层级。"""
+        self.tab_control.setStyleSheet(
+            f"""
+            SegmentedControl {{
+                background-color: #EAF0F7;
+                border: 1px solid #D7E0EC;
+                border-radius: 8px;
+            }}
+            """
+        )
+        self.tab_control.track.setStyleSheet("background: transparent;")
+        self.tab_control.indicator.setStyleSheet(
+            f"background-color: {Theme.Primary}; border-radius: 7px;"
+        )
+        self.tab_control.indicator.setGraphicsEffect(None)
+
+        button_style = f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {Theme.TextSecondary};
+                border: none;
+                border-radius: 7px;
+                padding: 0 18px;
+                font-size: 14px;
+                font-weight: 500;
+            }}
+            QPushButton:hover:!checked {{
+                background-color: {Theme.PrimaryLight};
+                color: {Theme.PrimaryHover};
+            }}
+            QPushButton:checked {{
+                background-color: transparent;
+                color: {Theme.TextOnPrimary};
+                font-weight: 600;
+            }}
+        """
+        for button in self.tab_control.buttons:
+            button.setStyleSheet(button_style)
+            button.setIconSize(QSize(16, 16))
+
+        self._update_tab_icons(0)
+
+    def _fit_tab_control_to_buttons(self):
+        """Keep the options tab switcher compact so the track has no empty tail."""
+        if not getattr(self, "tab_control", None) or not self.tab_control.buttons:
+            return
+
+        total_width = 8  # SegmentedControl track left/right margins.
+        for button in self.tab_control.buttons:
+            width = max(84, button.sizeHint().width() + 10)
+            button.setFixedWidth(width)
+            total_width += width
+
+        self.tab_control.setFixedWidth(total_width)
+        self.tab_control.track.setFixedWidth(total_width)
+        self.tab_control.scroll_area.setFixedWidth(total_width)
+        self.tab_control.indicator.setGeometry(
+            self.tab_control.buttons[self.tab_control._current_index].geometry()
+        )
+
+    def _update_tab_icons(self, current_index: int):
+        icon_names = ("magic", "settings")
+        for index, button in enumerate(self.tab_control.buttons):
+            color = (
+                Theme.TextOnPrimary
+                if index == current_index
+                else Theme.TextSecondary
+            )
+            button.setIcon(load_svg_icon(icon_names[index], 16, color))
 
     def create_convert_tab(self) -> QWidget:
         """创建转换标签页"""
@@ -292,7 +379,7 @@ class OptionsDialog(QDialog):
         self.parallel_spinbox.setValue(2)
         ModernInput.apply_style(self.parallel_spinbox)
         parallel_layout.addWidget(
-            create_param_row("并行任务数量:", self.parallel_spinbox)
+            create_param_row(t("options.label.parallel_tasks", "并行任务数量:"), self.parallel_spinbox)
         )
         parallel_card.addLayout(parallel_layout)
         layout.addWidget(parallel_card)
@@ -353,6 +440,9 @@ class OptionsDialog(QDialog):
         language_card.addLayout(language_layout)
         layout.addWidget(language_card)
         self._refresh_language_combo_labels()
+        self.language_combo.currentIndexChanged.connect(
+            self._on_language_combo_changed
+        )
 
         # 1. 所有任务完成后
         complete_card = ModernCard(t("options.section.on_all_tasks_complete", "所有任务完成后"))
@@ -541,7 +631,7 @@ class OptionsDialog(QDialog):
         name_label.setStyleSheet("font-size: 14px; font-weight: 600;")
         about_layout.addWidget(name_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 
-        version_label = QLabel(_ts(f"版本 {APP_VERSION}"))
+        version_label = QLabel(t("options.version", "版本 {version}", version=APP_VERSION))
         version_label.setStyleSheet(f"color: {Theme.TextSecondary};")
         about_layout.addWidget(version_label, alignment=Qt.AlignmentFlag.AlignHCenter)
 

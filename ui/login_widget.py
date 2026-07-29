@@ -154,9 +154,9 @@ class AccountPopup(QFrame):
         self.nickname_label.setStyleSheet("font-size: 14px; font-weight: 700; color: #0F172A;")
         text_col.addWidget(self.nickname_label)
 
-        status = QLabel(t("login_widget.status.logged_in_dot", "● 已登录"), shell)
-        status.setStyleSheet("font-size: 12px; color: #16A34A;")
-        text_col.addWidget(status)
+        self.status_label = QLabel(t("login_widget.status.logged_in_dot", "● 已登录"), shell)
+        self.status_label.setStyleSheet("font-size: 12px; color: #16A34A;")
+        text_col.addWidget(self.status_label)
         info_row.addLayout(text_col, 1)
         layout.addLayout(info_row)
 
@@ -274,6 +274,23 @@ class LoginWidget(QWidget):
 
         self._show_login_state()
 
+    def retranslate_ui(self):
+        self._login_btn.setText(t("login_widget.btn.login", "登录"))
+        self._popup.status_label.setText(t("login_widget.status.logged_in_dot", "● 已登录"))
+        self._popup.logout_btn.setText(t("login_widget.btn.logout", "退出登录"))
+        if not self._is_logged_in:
+            self._popup.nickname_label.setText(
+                t("login_widget.status.not_logged_in", "未登录")
+            )
+        elif not self._nickname:
+            self._popup.nickname_label.setText(
+                t("login_widget.status.default_user", "已登录用户")
+            )
+        if self._is_logged_in:
+            self._show_user_state()
+        else:
+            self._show_login_state()
+
     def eventFilter(self, obj, event):
         if obj is self._avatar_btn:
             if event.type() == QEvent.Type.Enter:
@@ -305,9 +322,11 @@ class LoginWidget(QWidget):
         self.setFixedWidth(42)
 
     def set_user_info(self, nickname: str, avatar_url: str):
-        self._nickname = nickname or "已登录用户"
+        self._nickname = nickname or ""
         self._avatar_url = self._normalize_avatar_url(avatar_url)
-        self._popup.nickname_label.setText(self._nickname)
+        self._popup.nickname_label.setText(
+            self._nickname or t("login_widget.status.default_user", "已登录用户")
+        )
         self._show_user_state()
         if self._avatar_url:
             self._load_avatar(self._avatar_url)

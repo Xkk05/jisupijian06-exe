@@ -510,7 +510,93 @@ class BatchVideoProcessorWindow(QMainWindow):
 
     def _on_language_changed(self, _lang: str):
         apply_language_to_widget(self)
+        title = t("app.title", "极速批剪 - 视频批量处理")
+        self.setWindowTitle(title)
+        if hasattr(self, "title_bar"):
+            self.title_bar.set_title(title)
         self._refresh_status_column_language()
+        self._refresh_enum_combo_language()
+        self.update_queue_status()
+        self._translate_process_log_language()
+
+    def _translate_process_log_language(self) -> None:
+        if not hasattr(self, "process_log"):
+            return
+        text = self.process_log.toPlainText()
+        if not text.strip():
+            return
+
+        translated_lines = []
+        changed = False
+        for line in text.splitlines():
+            prefix, separator, message = line.partition(" -> ")
+            if separator:
+                translated_message = self._language_manager.translate_source_text(message)
+                translated_line = f"{prefix}{separator}{translated_message}"
+            else:
+                translated_line = self._language_manager.translate_source_text(line)
+            changed = changed or translated_line != line
+            translated_lines.append(translated_line)
+
+        if changed:
+            self.process_log.setPlainText("\n".join(translated_lines))
+
+    def _refresh_combo_language(
+        self, combo: QComboBox, labels: Dict[str, Dict[str, str]]
+    ) -> None:
+        if combo is None:
+            return
+
+        current_code = combo.currentData()
+        current_text = combo.currentText()
+        if current_code not in labels:
+            current_code = None
+            for code, lang_map in labels.items():
+                if current_text in lang_map.values():
+                    current_code = code
+                    break
+
+        combo.blockSignals(True)
+        try:
+            for index in range(combo.count()):
+                code = combo.itemData(index)
+                if code not in labels:
+                    code = None
+                    item_text = combo.itemText(index)
+                    for candidate_code, lang_map in labels.items():
+                        if item_text in lang_map.values():
+                            code = candidate_code
+                            combo.setItemData(index, code)
+                            break
+                if code in labels:
+                    combo.setItemText(
+                        index,
+                        enum_label(labels, code, self._language_manager.language),
+                    )
+            if current_code in labels:
+                index = combo.findData(current_code)
+                if index >= 0:
+                    combo.setCurrentIndex(index)
+        finally:
+            combo.blockSignals(False)
+
+    def _refresh_enum_combo_language(self) -> None:
+        combo_specs = (
+            ("grid_direction", GRID_DIRECTION_LABELS),
+            ("resolution_preset", RESOLUTION_PRESET_LABELS),
+            ("crop_percent_mode", CROP_PERCENT_POSITION_LABELS),
+            ("watermark_preset", WATERMARK_PRESET_LABELS),
+        )
+        for attr_name, labels in combo_specs:
+            combo = getattr(self, attr_name, None)
+            if combo is not None:
+                self._refresh_combo_language(combo, labels)
+
+        for widget_dict in getattr(self, "watermark_widgets", []):
+            for combo_name in ("position_combo", "text_position"):
+                combo = widget_dict.get(combo_name)
+                if combo is not None:
+                    self._refresh_combo_language(combo, TEXT_POSITION_LABELS)
 
     def _ts(self, text: str) -> str:
         return self._language_manager.translate_source_text(text)
@@ -533,7 +619,7 @@ class BatchVideoProcessorWindow(QMainWindow):
 
     def init_ui(self):
         """初始化UI - 无边框沉浸式设计"""
-        self.setWindowTitle(self._ts("极速批剪 - 视频批量处理"))
+        self.setWindowTitle(t("app.title", "极速批剪 - 视频批量处理"))
         self.resize(1400, 850)  # 稍微加大一点因为有阴影留白
         # 约束最小宽度，避免右侧参数区被过度挤压导致布局错位
         self.setMinimumSize(1200, 750)
@@ -586,7 +672,7 @@ class BatchVideoProcessorWindow(QMainWindow):
         container_layout.setSpacing(0)
 
         # 5. 添加自定义标题栏
-        self.title_bar = TitleBar(self, self._ts("极速批剪 - 视频批量处理"))
+        self.title_bar = TitleBar(self, t("app.title", "极速批剪 - 视频批量处理"))
         logo_pixmap = load_logo_pixmap()
         if not logo_pixmap.isNull():
             self.title_bar.set_logo(logo_pixmap)
@@ -2060,6 +2146,7 @@ class BatchVideoProcessorWindow(QMainWindow):
                     "status": "pending",
                     "root_dir": root_dir,
                     "params": None,
+                    "process_error": "",
                 }
                 self.video_list.append(video_info)
 
@@ -2095,6 +2182,7 @@ class BatchVideoProcessorWindow(QMainWindow):
         self.update_queue_count()
         self.update_empty_state()
         self.update_header_checkbox_state()
+        self._adjust_number_column_width()
 
         # 如果之前没有选中视频，自动选中第一行
         if self.current_video_index is None and self.video_list:
@@ -3029,7 +3117,9 @@ class BatchVideoProcessorWindow(QMainWindow):
         from datetime import datetime
 
         timestamp = datetime.now().strftime("%H:%M:%S")
-        self.process_log.append(f"{timestamp} -> 配置已更新")
+        self.process_log.append(
+            f"{timestamp} -> {t('batch.left_panel.log.config_updated', '配置已更新')}"
+        )
 
     def _validate_watermark_settings(self) -> Tuple[bool, List[dict]]:
         """验证水印配置是否完整有效"""
@@ -4298,6 +4388,12 @@ class BatchVideoProcessorWindow(QMainWindow):
     def on_video_status_updated(self, row: int, status: str):
         """更新视频状态"""
         if row < self.video_table.rowCount():
+            if row < len(self.video_list):
+                self.video_list[row]["status"] = status
+                if status.startswith("error:"):
+                    self.video_list[row]["process_error"] = status.split(":", 1)[1].strip()
+                elif status in ("processing", "done", "pending"):
+                    self.video_list[row]["process_error"] = ""
             self._update_video_status_indicator(row, status)
 
     def on_processing_finished(self):
@@ -4683,6 +4779,7 @@ class BatchVideoProcessorWindow(QMainWindow):
                 no_item = QTableWidgetItem(str(i + 1))
                 no_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
                 self.video_table.setItem(i, self.COL_NO, no_item)
+            self._adjust_number_column_width()
 
             self.update_queue_count()
             self.update_empty_state()
@@ -4699,7 +4796,93 @@ class BatchVideoProcessorWindow(QMainWindow):
 
     def on_video_double_clicked(self, row: int, column: int):
         """双击视频行时预览"""
+        status_text = self._get_status_text(row)
+        status_code, _detail = self._split_status(status_text)
+        if status_code == "failed":
+            self.show_process_error_detail(row)
+            return
         self.preview_video(row)
+
+    def show_process_error_detail(self, row: int):
+        """显示处理失败详情，避免双击失败行时继续尝试预览。"""
+        if row < 0 or row >= len(self.video_list):
+            return
+
+        video_info = self.video_list[row]
+        video_path = video_info.get("path", "")
+        output_path = video_info.get("output_path", "")
+        status_text = self._get_status_text(row)
+        _status_code, status_detail = self._split_status(status_text)
+        error_detail = (
+            video_info.get("process_error")
+            or status_detail
+            or "处理失败，未返回详细错误。请查看处理记录或日志文件。"
+        )
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(t("batch.main_window.process_error.title", "处理失败详情"))
+        dialog.setMinimumSize(620, 360)
+        dialog.setStyleSheet(f"""
+            QDialog {{
+                background-color: {Theme.Background};
+            }}
+            QLabel {{
+                color: {Theme.TextPrimary};
+                font-size: 13px;
+                font-weight: normal;
+            }}
+            QTextEdit {{
+                background-color: {Theme.Surface};
+                color: {Theme.TextPrimary};
+                border: 1px solid {Theme.Border};
+                border-radius: 6px;
+                font-size: 13px;
+                padding: 8px;
+            }}
+        """)
+
+        layout = QVBoxLayout(dialog)
+        layout.setContentsMargins(18, 18, 18, 18)
+        layout.setSpacing(10)
+
+        title_label = QLabel(t("batch.main_window.process_error.header", "该文件处理失败"))
+        title_label.setStyleSheet(
+            f"color: {Theme.TextPrimary}; font-size: 15px; font-weight: 500;"
+        )
+        layout.addWidget(title_label)
+
+        file_label = QLabel(
+            t("batch.main_window.process_error.file", "文件：{path}", path=video_path)
+        )
+        file_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        file_label.setWordWrap(True)
+        layout.addWidget(file_label)
+
+        if output_path:
+            output_label = QLabel(
+                t(
+                    "batch.main_window.process_error.output",
+                    "输出：{path}",
+                    path=output_path,
+                )
+            )
+            output_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+            output_label.setWordWrap(True)
+            layout.addWidget(output_label)
+
+        detail_edit = QTextEdit()
+        detail_edit.setReadOnly(True)
+        detail_edit.setPlainText(str(error_detail).strip())
+        layout.addWidget(detail_edit, 1)
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        ok_btn = ModernButton(t("common.btn.ok", "确定"), ModernButton.Style.Primary)
+        ok_btn.clicked.connect(dialog.accept)
+        button_layout.addWidget(ok_btn)
+        layout.addLayout(button_layout)
+
+        dialog.exec()
 
     def preview_video(self, row: int):
         """预览视频"""
@@ -4971,13 +5154,30 @@ class BatchVideoProcessorWindow(QMainWindow):
             self._warn("错误", f"无法打开文件夹: {str(e)}")
 
     def select_all_videos(self):
-        """全选所有视频"""
+        """全选并勾选所有视频"""
         self.video_table.selectAll()
+        self._set_all_video_checks(Qt.CheckState.Checked)
 
     def invert_selection(self):
-        """反选"""
+        """反转行选择和处理勾选状态。"""
         selected_rows = set(self.get_selected_rows())
         total_rows = self.video_table.rowCount()
+
+        self.video_table.blockSignals(True)
+        try:
+            for row in range(total_rows):
+                item = self.video_table.item(row, self.COL_CHECK)
+                if item:
+                    new_state = (
+                        Qt.CheckState.Unchecked
+                        if item.checkState() == Qt.CheckState.Checked
+                        else Qt.CheckState.Checked
+                    )
+                    item.setCheckState(new_state)
+        finally:
+            self.video_table.blockSignals(False)
+        self.update_header_checkbox_state()
+        self.update_queue_status()
 
         # 如果没有选中任何行，反选就是全选
         if not selected_rows:
@@ -5033,6 +5233,7 @@ class BatchVideoProcessorWindow(QMainWindow):
         self.update_queue_count()
         self.update_empty_state()
         self.update_header_checkbox_state()
+        self._adjust_number_column_width()
 
         # 自动选中下一个可用行
         if self.video_list:
@@ -5080,6 +5281,7 @@ class BatchVideoProcessorWindow(QMainWindow):
         self.update_queue_count()
         self.update_empty_state()
         self.update_header_checkbox_state()
+        self._adjust_number_column_width()
 
         # 自动选中下一个可用行
         if self.video_list:
@@ -5442,6 +5644,31 @@ class BatchVideoProcessorWindow(QMainWindow):
             no_item = QTableWidgetItem(str(i + 1))
             no_item.setTextAlignment(Qt.AlignmentFlag.AlignCenter)
             self.video_table.setItem(i, self.COL_NO, no_item)
+        self._adjust_number_column_width()
+
+    def _adjust_number_column_width(self):
+        """根据行数调整编号列宽度，避免两位数以上显示为省略号。"""
+        if not hasattr(self, "video_table"):
+            return
+        digits = max(1, len(str(max(1, self.video_table.rowCount()))))
+        width = max(46, min(82, digits * 10 + 28))
+        self.video_table.setColumnWidth(self.COL_CHECK, 34)
+        self.video_table.setColumnWidth(self.COL_NO, width)
+
+    def _set_all_video_checks(self, state: Qt.CheckState):
+        """批量设置列表勾选状态，并同步表头与数量。"""
+        if self.video_table.rowCount() == 0:
+            return
+        self.video_table.blockSignals(True)
+        try:
+            for row in range(self.video_table.rowCount()):
+                item = self.video_table.item(row, self.COL_CHECK)
+                if item:
+                    item.setCheckState(state)
+        finally:
+            self.video_table.blockSignals(False)
+        self.update_header_checkbox_state()
+        self.update_queue_status()
 
     def refresh_table(self):
         """刷新整个表格"""
@@ -5464,6 +5691,7 @@ class BatchVideoProcessorWindow(QMainWindow):
 
             # 状态列使用组合控件（圆点 + 文字）
             self._update_video_status_indicator(row, video_info.get("status", "pending"))
+        self._adjust_number_column_width()
 
     def keyPressEvent(self, a0):
         """键盘事件处理"""
@@ -7646,10 +7874,19 @@ class BatchVideoProcessorWindow(QMainWindow):
                     success = self.processor.generate_preview(
                         self.video_path, self.preview_file, variant=0
                     )
-                    if success and os.path.exists(self.preview_file):
+                    if (
+                        success
+                        and os.path.exists(self.preview_file)
+                        and os.path.getsize(self.preview_file) > 0
+                    ):
                         self.finished.emit(True, self.preview_file)
                     else:
-                        self.finished.emit(False, "生成预览失败")
+                        reason = getattr(
+                            self.processor,
+                            "last_preview_error",
+                            "生成预览失败",
+                        )
+                        self.finished.emit(False, reason or "生成预览失败")
                 except Exception as e:
                     self.finished.emit(False, str(e))
 
@@ -7672,8 +7909,11 @@ class BatchVideoProcessorWindow(QMainWindow):
         else:
             logger.warning("[Preview] failed to get video info")
 
-        # 生成预览文件(临时目录)
-        preview_file = os.path.join(tempfile.gettempdir(), "kq_video_preview.mp4")
+        # 每次预览使用独立文件，避免连续预览互相覆盖或播放器占用冲突。
+        with tempfile.NamedTemporaryFile(
+            prefix="kq_video_preview_", suffix=".mp4", delete=False
+        ) as preview_handle:
+            preview_file = preview_handle.name
         logger.info(f"[Preview] output={preview_file}")
 
         # 显示进度对话框 - 关键修复：不设置父窗口，避免阻塞
@@ -7712,6 +7952,13 @@ class BatchVideoProcessorWindow(QMainWindow):
                 self._play_preview_video(result, title)
             else:
                 logger.error(f"[Preview] failed title={title} reason={result}")
+                try:
+                    if os.path.exists(preview_file):
+                        os.remove(preview_file)
+                except OSError as cleanup_error:
+                    logger.warning(
+                        f"[Preview] cleanup failed file={preview_file} error={cleanup_error}"
+                    )
                 self._warn("错误", f"预览失败: {result}")
 
         thread.finished.connect(on_finished)
@@ -7729,14 +7976,24 @@ class BatchVideoProcessorWindow(QMainWindow):
 
         from ui.video_preview_player import VideoPreviewPlayer
 
-        player = VideoPreviewPlayer(
-            video_path=video_file,
-            duration=10,
-            parent=self,
-            description=f"• {title}<br>预览前10秒效果",
-        )
-        player.setWindowTitle(title)
-        player.exec()
+        try:
+            player = VideoPreviewPlayer(
+                video_path=video_file,
+                duration=10,
+                parent=self,
+                description=f"• {title}<br>预览前10秒效果",
+            )
+            player.setWindowTitle(title)
+            player.exec()
+        finally:
+            try:
+                os.remove(video_file)
+            except FileNotFoundError:
+                pass
+            except OSError as cleanup_error:
+                logger.warning(
+                    f"[Preview] cleanup failed file={video_file} error={cleanup_error}"
+                )
 
     def reset_all_parameters(self):
         """重置所有参数到默认值"""

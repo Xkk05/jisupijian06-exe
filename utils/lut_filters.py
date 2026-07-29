@@ -1,7 +1,11 @@
 from __future__ import annotations
 
 import os
+import sys
+from pathlib import Path
 from typing import Dict, List, Optional
+
+from utils.ffmpeg_resources import materialize_ascii_resource
 
 
 _FILTER_DEFINITIONS = [
@@ -40,8 +44,26 @@ _FILTER_DEFINITIONS = [
 
 
 def get_lut_dir() -> str:
-    app_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    return os.path.join(app_root, "assets", "luts")
+    source_root = Path(__file__).resolve().parents[1]
+    roots = []
+    if hasattr(sys, "_MEIPASS"):
+        roots.append(Path(sys._MEIPASS))
+    if getattr(sys, "frozen", False):
+        executable_root = Path(sys.executable).resolve().parent
+        roots.extend((executable_root / "_internal", executable_root))
+    roots.append(source_root)
+
+    seen = set()
+    for root in roots:
+        lut_dir = root / "assets" / "luts"
+        key = os.path.normcase(os.path.abspath(str(lut_dir)))
+        if key in seen:
+            continue
+        seen.add(key)
+        if lut_dir.is_dir():
+            return str(lut_dir)
+
+    return str(source_root / "assets" / "luts")
 
 
 def list_filters() -> List[Dict[str, str]]:
@@ -84,3 +106,11 @@ def resolve_lut_path(filter_id: str) -> Optional[str]:
     if not file_name:
         return None
     return os.path.join(get_lut_dir(), file_name)
+
+
+def resolve_ffmpeg_lut_path(filter_id: str) -> Optional[str]:
+    """Resolve a LUT path that legacy Windows FFmpeg can open."""
+    source_path = resolve_lut_path(filter_id)
+    if not source_path or not os.path.isfile(source_path):
+        return source_path
+    return materialize_ascii_resource(source_path, "luts")

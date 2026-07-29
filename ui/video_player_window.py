@@ -201,7 +201,7 @@ class SimpleVideoPlayer(QMainWindow):
             "}"
             "QComboBox QAbstractItemView::item {"
             "height: 28px;"
-            "padding: 4px 12px;"
+            "padding: 4px 10px;"
             "border-radius: 4px;"
             "}"
             "QComboBox QAbstractItemView::item:hover {"
@@ -288,6 +288,8 @@ class SimpleVideoPlayer(QMainWindow):
         self.speed_combo.addItems(["0.5x", "0.75x", "1.0x", "1.25x", "1.5x", "2.0x"])
         self.speed_combo.setCurrentText("1.0x")
         self.speed_combo.setFixedSize(58, 30)
+        self.speed_combo.view().setMinimumWidth(96)
+        self.speed_combo.view().setTextElideMode(Qt.TextElideMode.ElideNone)
         self.speed_combo.setCursor(Qt.CursorShape.PointingHandCursor)
         controls_layout.addWidget(self.speed_combo, 0, Qt.AlignmentFlag.AlignVCenter)
 

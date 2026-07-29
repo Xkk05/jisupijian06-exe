@@ -8,19 +8,28 @@ from PyQt6.QtWidgets import (
     QGroupBox, QMessageBox, QFrame, QSizePolicy
 )
 from PyQt6.QtCore import Qt, QTimer, QObject, QThread, pyqtSignal
-from PyQt6.QtGui import QPixmap
+from PyQt6.QtGui import QColor, QImage, QPixmap
 import os
 import subprocess
+import sys
 import tempfile
+from pathlib import Path
 
 from ui.components import ModernButton, ModernCard, ToggleSwitch, ModernInput, create_section_header
 from ui.theme import Theme
 from ui.i18n import t
-from utils.lut_filters import list_filters, display_to_id, resolve_lut_path
+from utils.lut_filters import (
+    display_to_id,
+    get_lut_dir,
+    list_filters,
+    resolve_ffmpeg_lut_path,
+    resolve_lut_path,
+)
+from utils.unified_logger import logger
 
 
 class _LUTPreviewWorker(QObject):
-    finished = pyqtSignal(int, str, bool)
+    finished = pyqtSignal(int, str, bool, str)
 
     def __init__(self, cmd, output_file, generation, parent=None):
         super().__init__(parent)
@@ -33,12 +42,37 @@ class _LUTPreviewWorker(QObject):
         if os.name == "nt" and hasattr(subprocess, "CREATE_NO_WINDOW"):
             creation_flags = subprocess.CREATE_NO_WINDOW
         success = False
+        error_message = ""
         try:
-            subprocess.run(self._cmd, capture_output=True, check=True, creationflags=creation_flags)
-            success = True
-        except Exception:
-            success = False
-        self.finished.emit(self._generation, self._output_file, success)
+            result = subprocess.run(
+                self._cmd,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                creationflags=creation_flags,
+            )
+            success = (
+                result.returncode == 0
+                and os.path.exists(self._output_file)
+                and os.path.getsize(self._output_file) > 0
+            )
+            if not success:
+                error_message = (result.stderr or "").strip() or (
+                    f"FFmpeg返回码 {result.returncode}，未生成有效图片"
+                )
+        except Exception as exc:
+            error_message = str(exc)
+
+        if not success:
+            logger.error(
+                "[LUTPreview] failed command=%s error=%s",
+                subprocess.list2cmdline(self._cmd),
+                error_message[-4000:],
+            )
+        self.finished.emit(
+            self._generation, self._output_file, success, error_message
+        )
 
 
 class LUTFilterDialog(QDialog):
@@ -55,6 +89,7 @@ class LUTFilterDialog(QDialog):
         self._preview_generation = 0
         self._preview_thread = None
         self._preview_worker = None
+        self._cube_cache = {}
         self._preview_timer = QTimer(self)
         self._preview_timer.setSingleShot(True)
         self._preview_timer.timeout.connect(self.update_preview_from_selection)
@@ -167,7 +202,9 @@ class LUTFilterDialog(QDialog):
         row = 0
         col = 0
         for item in filters:
-            checkbox = QCheckBox(item["name"])
+            checkbox = QCheckBox(
+                t(f"lut_filter_dialog.filter.{item['id']}", item["name"])
+            )
             checkbox.setProperty("filter_id", item["id"])
             checkbox.setChecked(True)
             checkbox.setEnabled(False)
@@ -256,10 +293,15 @@ class LUTFilterDialog(QDialog):
 
     def load_sample_image(self):
         """加载样例图片"""
-        sample_image_path = os.path.join(
-            os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-            "assets",
-            t("lut_filter_dialog.preview.sample_image", "样例.jpg"),
+        assets_dir = os.path.dirname(get_lut_dir())
+        translated_name = t("lut_filter_dialog.preview.sample_image", "样例.jpg")
+        sample_candidates = [
+            os.path.join(assets_dir, translated_name),
+            os.path.join(assets_dir, "样例.jpg"),
+        ]
+        sample_image_path = next(
+            (path for path in sample_candidates if os.path.exists(path)),
+            sample_candidates[0],
         )
         if os.path.exists(sample_image_path):
             pixmap = QPixmap(sample_image_path)
@@ -374,17 +416,139 @@ class LUTFilterDialog(QDialog):
         self._preview_timer.start(150)
 
     def _find_ffmpeg(self) -> str:
-        app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        bundled_ffmpeg = os.path.join(app_dir, "ffmpeg", "ffmpeg.exe")
-        if os.path.exists(bundled_ffmpeg):
-            return bundled_ffmpeg
-        processor_ffmpeg = os.path.join(app_dir, "processor", "ffmpeg.exe")
-        if os.path.exists(processor_ffmpeg):
-            return processor_ffmpeg
+        executable_name = "ffmpeg.exe" if os.name == "nt" else "ffmpeg"
+        roots = []
+        if hasattr(sys, "_MEIPASS"):
+            roots.append(Path(sys._MEIPASS))
+        roots.append(Path(__file__).resolve().parents[1])
+        if getattr(sys, "frozen", False):
+            executable_root = Path(sys.executable).resolve().parent
+            roots.extend((executable_root / "_internal", executable_root))
+
+        relative_candidates = (
+            ("ffmpeg", executable_name),
+            ("processor", executable_name),
+            (executable_name,),
+        )
+        seen = set()
+        for root in roots:
+            for parts in relative_candidates:
+                candidate = root.joinpath(*parts)
+                key = os.path.normcase(os.path.abspath(str(candidate)))
+                if key in seen:
+                    continue
+                seen.add(key)
+                if candidate.is_file():
+                    return str(candidate)
         return "ffmpeg"
 
     def _escape_filter_path(self, path: str) -> str:
         return path.replace("\\", "/").replace(":", "\\:")
+
+    def _selected_filter_ids(self):
+        selected_ids = []
+        for checkbox in self.filter_checkboxes:
+            if checkbox.isChecked():
+                filter_id = checkbox.property("filter_id")
+                if filter_id:
+                    selected_ids.append(filter_id)
+        if self.random_apply_check.isChecked() and selected_ids:
+            return [selected_ids[0]]
+        return selected_ids
+
+    def _load_cube_table(self, lut_path: str):
+        cached = self._cube_cache.get(lut_path)
+        if cached:
+            return cached
+
+        size = None
+        values = []
+        with open(lut_path, "r", encoding="utf-8", errors="ignore") as handle:
+            for raw_line in handle:
+                line = raw_line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                upper = line.upper()
+                if upper.startswith("LUT_3D_SIZE"):
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        size = int(parts[1])
+                    continue
+                if upper.startswith(
+                    ("TITLE", "DOMAIN_MIN", "DOMAIN_MAX", "LUT_1D_SIZE")
+                ):
+                    continue
+                parts = line.split()
+                if len(parts) < 3:
+                    continue
+                try:
+                    values.append(
+                        tuple(
+                            max(0, min(255, int(float(part) * 255)))
+                            for part in parts[:3]
+                        )
+                    )
+                except ValueError:
+                    continue
+
+        if not size or len(values) < size * size * size:
+            return None
+
+        table = (size, values[: size * size * size])
+        self._cube_cache[lut_path] = table
+        return table
+
+    def _apply_cube_table_to_image(self, image: QImage, cube_table):
+        size, values = cube_table
+        max_index = size - 1
+        for y in range(image.height()):
+            for x in range(image.width()):
+                color = image.pixelColor(x, y)
+                r_idx = round(color.red() * max_index / 255)
+                g_idx = round(color.green() * max_index / 255)
+                b_idx = round(color.blue() * max_index / 255)
+                lut_index = r_idx + g_idx * size + b_idx * size * size
+                red, green, blue = values[lut_index]
+                image.setPixelColor(x, y, QColor(red, green, blue, color.alpha()))
+
+    def _apply_qimage_lut_preview(self, selected_ids) -> bool:
+        if not self._original_pixmap or not selected_ids:
+            return False
+        target_size = self.sample_label.size()
+        if target_size.width() <= 0 or target_size.height() <= 0:
+            target_size = self.sample_label.minimumSize()
+
+        preview_pixmap = self._original_pixmap.scaled(
+            target_size,
+            Qt.AspectRatioMode.KeepAspectRatio,
+            Qt.TransformationMode.SmoothTransformation,
+        )
+        image = preview_pixmap.toImage().convertToFormat(QImage.Format.Format_RGBA8888)
+
+        applied = False
+        for filter_id in selected_ids:
+            lut_path = resolve_lut_path(filter_id)
+            if not lut_path or not os.path.exists(lut_path):
+                continue
+            try:
+                cube_table = self._load_cube_table(lut_path)
+                if not cube_table:
+                    continue
+                self._apply_cube_table_to_image(image, cube_table)
+                applied = True
+            except Exception as exc:
+                logger.warning(
+                    "[LUTPreview] qimage fallback failed file=%s error=%s",
+                    lut_path,
+                    exc,
+                )
+
+        if not applied:
+            return False
+
+        self._sample_pixmap = QPixmap.fromImage(image)
+        self.update_sample_preview()
+        return True
 
     def update_preview_from_selection(self):
         self._preview_generation += 1
@@ -396,26 +560,26 @@ class LUTFilterDialog(QDialog):
             self.update_sample_preview()
             return
 
-        selected_ids = []
-        for checkbox in self.filter_checkboxes:
-            if checkbox.isChecked():
-                filter_id = checkbox.property("filter_id")
-                if filter_id:
-                    selected_ids.append(filter_id)
+        selected_ids = self._selected_filter_ids()
 
         if not selected_ids:
             self._sample_pixmap = self._original_pixmap
             self.update_sample_preview()
             return
 
-        if self.random_apply_check.isChecked():
-            selected_ids = [selected_ids[0]]
-
         lut_paths = []
-        for filter_id in selected_ids:
-            lut_path = resolve_lut_path(filter_id)
-            if lut_path and os.path.exists(lut_path):
-                lut_paths.append(lut_path)
+        try:
+            for filter_id in selected_ids:
+                lut_path = resolve_ffmpeg_lut_path(filter_id)
+                if lut_path and os.path.exists(lut_path):
+                    lut_paths.append(lut_path)
+        except (OSError, RuntimeError) as exc:
+            logger.error("[LUTPreview] prepare FFmpeg path failed: %s", exc)
+            if not self._apply_qimage_lut_preview(selected_ids):
+                self.sample_label.setText(
+                    t("lut_filter_dialog.error.preview_failed", "预览生成失败")
+                )
+            return
 
         if not lut_paths:
             self.sample_label.setText(t("lut_filter_dialog.error.no_lut", "未找到可用的LUT文件"))
@@ -458,20 +622,47 @@ class LUTFilterDialog(QDialog):
         self._preview_thread.finished.connect(self._preview_thread.deleteLater)
         self._preview_thread.start()
 
-    def _on_preview_worker_finished(self, generation, output_file, success):
+    def _on_preview_worker_finished(
+        self, generation, output_file, success, error_message
+    ):
         self._preview_inflight = False
         self._preview_thread = None
         self._preview_worker = None
-        if generation == self._preview_generation:
-            if success:
-                pixmap = QPixmap(output_file)
-                if not pixmap.isNull():
-                    self._sample_pixmap = pixmap
-                    self.update_sample_preview()
-                else:
-                    self.sample_label.setText(t("lut_filter_dialog.error.preview_failed", "预览生成失败"))
-            else:
-                self.sample_label.setText(t("lut_filter_dialog.error.preview_failed", "预览生成失败"))
+        try:
+            if generation == self._preview_generation:
+                if success:
+                    pixmap = QPixmap(output_file)
+                    if not pixmap.isNull():
+                        self._sample_pixmap = pixmap
+                        self.update_sample_preview()
+                    else:
+                        if not self._apply_qimage_lut_preview(self._selected_filter_ids()):
+                            self.sample_label.setText(
+                                t(
+                                    "lut_filter_dialog.error.preview_failed",
+                                    "预览生成失败",
+                                )
+                            )
+                elif not self._apply_qimage_lut_preview(self._selected_filter_ids()):
+                    self.sample_label.setText(
+                        t("lut_filter_dialog.error.preview_failed", "预览生成失败")
+                    )
+                    logger.error(
+                        "[LUTPreview] generation=%s error=%s",
+                        generation,
+                        error_message[-4000:],
+                    )
+        finally:
+            try:
+                os.remove(output_file)
+            except FileNotFoundError:
+                pass
+            except OSError as cleanup_error:
+                logger.warning(
+                    "[LUTPreview] cleanup failed file=%s error=%s",
+                    output_file,
+                    cleanup_error,
+                )
 
         if self._preview_pending:
             self._preview_pending = False

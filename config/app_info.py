@@ -1,3 +1,3 @@
 APP_NAME = "极速批剪"
-APP_VERSION = "1.0.7"
+APP_VERSION = "1.0.9"
 SOFT_NUMBER = "10039"

@@ -639,6 +639,7 @@ class TextConfigDialog(QDialog):
         
         self.diagonal_check = QCheckBox(_ts("对角移动"))
         self.diagonal_check.setEnabled(False)
+        self.diagonal_check.toggled.connect(self.on_diagonal_check_changed)
         layout.addWidget(self.diagonal_check)
         
         layout.addStretch()
@@ -809,10 +810,20 @@ class TextConfigDialog(QDialog):
     
     def on_scroll_check_changed(self, checked: bool):
         """滚动复选框变化"""
-        self.scroll_direction.setEnabled(checked)
-        self.scroll_speed.setEnabled(checked)
-        self.random_speed_check.setEnabled(checked)
         self.diagonal_check.setEnabled(checked)
+        self._sync_scroll_motion_controls()
+
+    def on_diagonal_check_changed(self, _checked: bool):
+        """对角移动与普通方向、速度参数互斥。"""
+        self._sync_scroll_motion_controls()
+
+    def _sync_scroll_motion_controls(self):
+        normal_motion_enabled = (
+            self.scroll_switch.isChecked() and not self.diagonal_check.isChecked()
+        )
+        self.scroll_direction.setEnabled(normal_motion_enabled)
+        self.scroll_speed.setEnabled(normal_motion_enabled)
+        self.random_speed_check.setEnabled(normal_motion_enabled)
     
     def on_choose_font_color(self):
         """选择字体颜色"""
@@ -1014,6 +1025,7 @@ class TextConfigDialog(QDialog):
         self.scroll_speed.setValue(self.config.get('scroll_speed', 1.0))
         self.random_speed_check.setChecked(self.config.get('random_speed', False))
         self.diagonal_check.setChecked(self.config.get('diagonal', False))
+        self._sync_scroll_motion_controls()
         
         # 加载显示时序
         self.delay.setValue(self.config.get('delay', 0))
@@ -1078,10 +1090,16 @@ class TextConfigDialog(QDialog):
         
         # 滚动动态
         config['scroll_enabled'] = self.scroll_switch.isChecked()
-        config['scroll_direction'] = self.scroll_direction.currentData() or 'right'
-        config['scroll_speed'] = self.scroll_speed.value()
-        config['random_speed'] = self.random_speed_check.isChecked()
-        config['diagonal'] = self.diagonal_check.isChecked()
+        diagonal = self.diagonal_check.isChecked()
+        config['diagonal'] = diagonal
+        if diagonal:
+            config['scroll_direction'] = 'right'
+            config['scroll_speed'] = 1.0
+            config['random_speed'] = False
+        else:
+            config['scroll_direction'] = self.scroll_direction.currentData() or 'right'
+            config['scroll_speed'] = self.scroll_speed.value()
+            config['random_speed'] = self.random_speed_check.isChecked()
         
         # 显示时序
         config['delay'] = self.delay.value()
